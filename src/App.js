@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -54,106 +54,106 @@ function AppContent() {
         <Route
           path="/"
           element={
-            <ProtectedRoute>
+            <HashRouter>
               <StudentHome />
-            </ProtectedRoute>
+            </HashRouter>
           }
         />
         <Route
           path="/student/subjects/:id"
           element={
-            <ProtectedRoute>
+            <HashRouter>
               <StudentSubjectDetail />
-            </ProtectedRoute>
+            </HashRouter>
           }
         />
         <Route
           path="/student/exam/:id"
           element={
-            <ProtectedRoute>
+            <HashRouter>
               <Exam />
-            </ProtectedRoute>
+            </HashRouter>
           }
         />
         <Route
           path="/student/exam/:id/result"
           element={
-            <ProtectedRoute>
+            <HashRouter>
               <ExamResult />
-            </ProtectedRoute>
+            </HashRouter>
           }
         />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route
           path="/admin/dashboard"
           element={
-            <ProtectedRoute adminOnly>
+            <HashRouter adminOnly>
               <AdminDashboard />
-            </ProtectedRoute>
+            </HashRouter>
           }
         />
         <Route
           path="/admin/terms"
           element={
-            <ProtectedRoute adminOnly>
+            <HashRouter adminOnly>
               <Terms />
-            </ProtectedRoute>
+            </HashRouter>
           }
         />
         <Route
           path="/admin/subjects"
           element={
-            <ProtectedRoute adminOnly>
+            <HashRouter adminOnly>
               <Subjects />
-            </ProtectedRoute>
+            </HashRouter>
           }
         />
         <Route
           path="/admin/subjects/add"
           element={
-            <ProtectedRoute adminOnly>
+            <HashRouter adminOnly>
               <AddSubject />
-            </ProtectedRoute>
+            </HashRouter>
           }
         />
         <Route
           path="/admin/subjects/:id"
           element={
-            <ProtectedRoute adminOnly>
+            <HashRouter adminOnly>
               <SubjectDetail />
-            </ProtectedRoute>
+            </HashRouter>
           }
         />
         <Route
           path="/admin/subjects/:subjectId/exams/add"
           element={
-            <ProtectedRoute adminOnly>
+            <HashRouter adminOnly>
               <AddExam />
-            </ProtectedRoute>
+            </HashRouter>
           }
         />
         <Route
           path="/admin/subjects/:subjectId/questions"
           element={
-            <ProtectedRoute adminOnly>
+            <HashRouter adminOnly>
               <ManageQuestions />
-            </ProtectedRoute>
+            </HashRouter>
           }
         />
         <Route
           path="/admin/students"
           element={
-            <ProtectedRoute adminOnly>
+            <HashRouter adminOnly>
               <Students />
-            </ProtectedRoute>
+            </HashRouter>
           }
         />
         <Route
           path="/admin/student-questions"
           element={
-            <ProtectedRoute adminOnly>
+            <HashRouter adminOnly>
               <StudentQuestions />
-            </ProtectedRoute>
+            </HashRouter>
           }
         />
         <Route path="*" element={<Navigate to="/" />} />

@@ -163,7 +163,7 @@ const Students = () => {
                   >
                     {student.status === 'active' ? (
                       <>
-                        <FiBan /> حظر
+                        <FiSlash /> حظر
                       </>
                     ) : (
                       <>

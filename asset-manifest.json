@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/tawal-academy/static/css/main.811cc66f.css",
-    "main.js": "/tawal-academy/static/js/main.c28f7bf5.js",
+    "main.js": "/tawal-academy/static/js/main.857a05dd.js",
     "index.html": "/tawal-academy/index.html",
     "main.811cc66f.css.map": "/tawal-academy/static/css/main.811cc66f.css.map",
-    "main.c28f7bf5.js.map": "/tawal-academy/static/js/main.c28f7bf5.js.map"
+    "main.857a05dd.js.map": "/tawal-academy/static/js/main.857a05dd.js.map"
   },
   "entrypoints": [
     "static/css/main.811cc66f.css",
-    "static/js/main.c28f7bf5.js"
+    "static/js/main.857a05dd.js"
   ]
 }

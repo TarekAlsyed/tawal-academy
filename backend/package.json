@@ -1,0 +1,36 @@
+{
+  "name": "tawal-academy-backend",
+  "version": "1.0.0",
+  "description": "Backend for Tawal Academy - Educational Platform",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "create-tables": "node src/config/createTables.js"
+  },
+  "keywords": ["education", "academy", "exams"],
+  "author": "Tawal Academy",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.3",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "xlsx": "^0.18.5",
+    "moment": "^2.29.4",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "cookie-parser": "^1.4.6",
+    "uuid": "^9.0.1",
+    "device-detector-js": "^3.0.3",
+    "pdfkit": "^0.13.0",
+    "axios": "^1.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

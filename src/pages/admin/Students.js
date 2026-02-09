@@ -3,7 +3,7 @@ import { toast } from 'react-toastify';
 import { FiUser, FiMail, FiPhone, FiAward, FiBan, FiCheck } from 'react-icons/fi';
 import api from '../../services/api';
 import { API_ENDPOINTS } from '../../config/api';
-import AdminLayout from '../../components/AdminLayout';
+import AdminLayout from '../../components/admin/AdminLayout';
 import '../../styles/AdminPages.css';
 
 const Students = () => {

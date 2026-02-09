@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/tawal-academy/static/css/main.811cc66f.css",
+    "main.js": "/tawal-academy/static/js/main.dc1c2551.js",
+    "index.html": "/tawal-academy/index.html",
+    "main.811cc66f.css.map": "/tawal-academy/static/css/main.811cc66f.css.map",
+    "main.dc1c2551.js.map": "/tawal-academy/static/js/main.dc1c2551.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.811cc66f.css",
+    "static/js/main.dc1c2551.js"
+  ]
+}

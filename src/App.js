@@ -20,6 +20,7 @@ import ManageQuestions from './pages/admin/ManageQuestions';
 import Students from './pages/admin/Students';
 import StudentQuestions from './pages/admin/StudentQuestions';
 
+// مكون الحماية (نستخدمه لحماية الصفحات)
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { isAuthenticated, isAdminAuthenticated, loading } = useAuth();
 
@@ -36,6 +37,7 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
 
 function AppContent() {
   return (
+    // استخدامنا HashRouter مرة واحدة هنا (باسم Router كما تم استيراده)
     <Router>
       <ToastContainer
         position="top-center"
@@ -50,112 +52,121 @@ function AppContent() {
       />
       
       <Routes>
+        {/* صفحات الطالب العامة */}
         <Route path="/login" element={<StudentLogin />} />
+        
+        {/* صفحات الطالب المحمية */}
         <Route
           path="/"
           element={
-            <HashRouter>
+            <ProtectedRoute>
               <StudentHome />
-            </HashRouter>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/student/subjects/:id"
           element={
-            <HashRouter>
+            <ProtectedRoute>
               <StudentSubjectDetail />
-            </HashRouter>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/student/exam/:id"
           element={
-            <HashRouter>
+            <ProtectedRoute>
               <Exam />
-            </HashRouter>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/student/exam/:id/result"
           element={
-            <HashRouter>
+            <ProtectedRoute>
               <ExamResult />
-            </HashRouter>
+            </ProtectedRoute>
           }
         />
+
+        {/* صفحات الأدمن العامة */}
         <Route path="/admin/login" element={<AdminLogin />} />
+
+        {/* صفحات الأدمن المحمية */}
         <Route
           path="/admin/dashboard"
           element={
-            <HashRouter adminOnly>
+            <ProtectedRoute adminOnly>
               <AdminDashboard />
-            </HashRouter>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/admin/terms"
           element={
-            <HashRouter adminOnly>
+            <ProtectedRoute adminOnly>
               <Terms />
-            </HashRouter>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/admin/subjects"
           element={
-            <HashRouter adminOnly>
+            <ProtectedRoute adminOnly>
               <Subjects />
-            </HashRouter>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/admin/subjects/add"
           element={
-            <HashRouter adminOnly>
+            <ProtectedRoute adminOnly>
               <AddSubject />
-            </HashRouter>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/admin/subjects/:id"
           element={
-            <HashRouter adminOnly>
+            <ProtectedRoute adminOnly>
               <SubjectDetail />
-            </HashRouter>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/admin/subjects/:subjectId/exams/add"
           element={
-            <HashRouter adminOnly>
+            <ProtectedRoute adminOnly>
               <AddExam />
-            </HashRouter>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/admin/subjects/:subjectId/questions"
           element={
-            <HashRouter adminOnly>
+            <ProtectedRoute adminOnly>
               <ManageQuestions />
-            </HashRouter>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/admin/students"
           element={
-            <HashRouter adminOnly>
+            <ProtectedRoute adminOnly>
               <Students />
-            </HashRouter>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/admin/student-questions"
           element={
-            <HashRouter adminOnly>
+            <ProtectedRoute adminOnly>
               <StudentQuestions />
-            </HashRouter>
+            </ProtectedRoute>
           }
         />
+
+        {/* أي رابط غير موجود يرجع للصفحة الرئيسية */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { FiUser, FiMail, FiPhone, FiAward, FiBan, FiCheck } from 'react-icons/fi';
+import { FiUser, FiMail, FiPhone, FiAward, FiSlash, FiCheck } from 'react-icons/fi';
 import api from '../../services/api';
 import { API_ENDPOINTS } from '../../config/api';
 import AdminLayout from '../../components/admin/AdminLayout';

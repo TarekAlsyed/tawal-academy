@@ -17,6 +17,7 @@ const Exam = () => {
 
   useEffect(() => {
     fetchExam();
+    loadProgress();
     // منع النسخ واللصق
     document.addEventListener('copy', preventCopy);
     document.addEventListener('cut', preventCopy);
@@ -53,11 +54,30 @@ const Exam = () => {
     }
   };
 
-  const handleAnswerChange = (questionId, answer) => {
-    setAnswers({
+  const loadProgress = async () => {
+    try {
+      const response = await api.get(`/exams/${id}/progress`);
+      if (response.data.success && response.data.data.answers) {
+        setAnswers(response.data.data.answers);
+      }
+    } catch (error) {
+      console.error('فشل تحميل التقدم المحفوظ');
+    }
+  };
+
+  const handleAnswerChange = async (questionId, answer) => {
+    const newAnswers = {
       ...answers,
       [questionId]: answer
-    });
+    };
+    setAnswers(newAnswers);
+
+    // حفظ التقدم تلقائياً
+    try {
+      await api.post(`/exams/${id}/progress`, { answers: newAnswers });
+    } catch (error) {
+      console.error('فشل حفظ التقدم');
+    }
   };
 
   const handleSubmit = async () => {

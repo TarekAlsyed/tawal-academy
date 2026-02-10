@@ -1,5 +1,5 @@
-import React from 'react';
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -36,9 +36,41 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
 };
 
 function AppContent() {
+  useEffect(() => {
+    // منع القائمة اليمنى (Right Click)
+    const handleContextMenu = (e) => {
+      e.preventDefault();
+    };
+
+    // منع النسخ
+    const handleCopy = (e) => {
+      e.preventDefault();
+    };
+
+    // منع اختصارات لوحة المفاتيح (Ctrl+C, Ctrl+V, Ctrl+U, F12, etc.)
+    const handleKeyDown = (e) => {
+      // Ctrl+C, Ctrl+V, Ctrl+U (view source), Ctrl+Shift+I (inspect)
+      if (
+        (e.ctrlKey && (e.keyCode === 67 || e.keyCode === 86 || e.keyCode === 85 || (e.shiftKey && e.keyCode === 73))) ||
+        e.keyCode === 123 // F12
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('copy', handleCopy);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('copy', handleCopy);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   return (
-    // استخدامنا HashRouter مرة واحدة هنا (باسم Router كما تم استيراده)
-    <Router>
+    <Router basename="/tawal-academy">
       <ToastContainer
         position="top-center"
         autoClose={3000}
@@ -52,10 +84,13 @@ function AppContent() {
       />
       
       <Routes>
-        {/* صفحات الطالب العامة */}
+        {/* صفحة تسجيل دخول الطالب */}
         <Route path="/login" element={<StudentLogin />} />
         
-        {/* صفحات الطالب المحمية */}
+        {/* صفحة تسجيل دخول الأدمن منفصلة تماماً */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+        
+        {/* مسارات الطالب المحمية */}
         <Route
           path="/"
           element={
@@ -65,7 +100,7 @@ function AppContent() {
           }
         />
         <Route
-          path="/student/subjects/:id"
+          path="/subjects/:id"
           element={
             <ProtectedRoute>
               <StudentSubjectDetail />
@@ -73,7 +108,7 @@ function AppContent() {
           }
         />
         <Route
-          path="/student/exam/:id"
+          path="/exam/:id"
           element={
             <ProtectedRoute>
               <Exam />
@@ -81,7 +116,7 @@ function AppContent() {
           }
         />
         <Route
-          path="/student/exam/:id/result"
+          path="/exam-result/:id"
           element={
             <ProtectedRoute>
               <ExamResult />
@@ -89,14 +124,11 @@ function AppContent() {
           }
         />
 
-        {/* صفحات الأدمن العامة */}
-        <Route path="/admin/login" element={<AdminLogin />} />
-
-        {/* صفحات الأدمن المحمية */}
+        {/* مسارات الأدمن المحمية */}
         <Route
           path="/admin/dashboard"
           element={
-            <ProtectedRoute adminOnly>
+            <ProtectedRoute adminOnly={true}>
               <AdminDashboard />
             </ProtectedRoute>
           }
@@ -104,7 +136,7 @@ function AppContent() {
         <Route
           path="/admin/terms"
           element={
-            <ProtectedRoute adminOnly>
+            <ProtectedRoute adminOnly={true}>
               <Terms />
             </ProtectedRoute>
           }
@@ -112,39 +144,39 @@ function AppContent() {
         <Route
           path="/admin/subjects"
           element={
-            <ProtectedRoute adminOnly>
+            <ProtectedRoute adminOnly={true}>
               <Subjects />
             </ProtectedRoute>
           }
         />
         <Route
-          path="/admin/subjects/add"
+          path="/admin/add-subject"
           element={
-            <ProtectedRoute adminOnly>
+            <ProtectedRoute adminOnly={true}>
               <AddSubject />
             </ProtectedRoute>
           }
         />
         <Route
-          path="/admin/subjects/:id"
+          path="/admin/subject/:id"
           element={
-            <ProtectedRoute adminOnly>
+            <ProtectedRoute adminOnly={true}>
               <SubjectDetail />
             </ProtectedRoute>
           }
         />
         <Route
-          path="/admin/subjects/:subjectId/exams/add"
+          path="/admin/add-exam/:subjectId"
           element={
-            <ProtectedRoute adminOnly>
+            <ProtectedRoute adminOnly={true}>
               <AddExam />
             </ProtectedRoute>
           }
         />
         <Route
-          path="/admin/subjects/:subjectId/questions"
+          path="/admin/manage-questions/:examId"
           element={
-            <ProtectedRoute adminOnly>
+            <ProtectedRoute adminOnly={true}>
               <ManageQuestions />
             </ProtectedRoute>
           }
@@ -152,7 +184,7 @@ function AppContent() {
         <Route
           path="/admin/students"
           element={
-            <ProtectedRoute adminOnly>
+            <ProtectedRoute adminOnly={true}>
               <Students />
             </ProtectedRoute>
           }
@@ -160,14 +192,14 @@ function AppContent() {
         <Route
           path="/admin/student-questions"
           element={
-            <ProtectedRoute adminOnly>
+            <ProtectedRoute adminOnly={true}>
               <StudentQuestions />
             </ProtectedRoute>
           }
         />
 
-        {/* أي رابط غير موجود يرجع للصفحة الرئيسية */}
-        <Route path="*" element={<Navigate to="/" />} />
+        {/* إعادة توجيه أي رابط غير معروف */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
   );

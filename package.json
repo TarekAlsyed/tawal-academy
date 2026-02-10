@@ -1,6 +1,6 @@
 {
   "name": "frontend",
-  "homepage": "https://tarekalsyed.github.io/tawal-academy",
+  "homepage": ".",
   "version": "0.1.0",
   "private": true,
   "dependencies": {

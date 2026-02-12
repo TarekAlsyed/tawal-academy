@@ -26,19 +26,18 @@
     -->
     <title>Tawal Academy</title>
     <script type="text/javascript">
-      // Single Page Apps for GitHub Pages
-      // MIT License
-      // https://github.com/rafgraph/spa-github-pages
-      var pathSegmentsToKeep = 0;
-
+      // Simple redirect for HashRouter on GitHub Pages
       var l = window.location;
-      l.replace(
-        l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-        l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
-        l.pathname.split('/').slice(1 + pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
-        (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
-        l.hash
-      );
+      if (l.pathname !== '/' && l.pathname !== '') {
+        var hashPath = l.pathname + l.search + l.hash;
+        window.location.replace(l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') + '/#' + hashPath);
+      } else if (l.search.startsWith('?/')) {
+        // Handle SPA redirect if it exists
+        var decoded = l.search.slice(1).split('&').map(function(s) { 
+          return s.replace(/~and~/g, '&') 
+        }).join('?');
+        window.location.replace(l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') + '/#' + decoded + l.hash);
+      }
     </script>
   </head>
   <body>

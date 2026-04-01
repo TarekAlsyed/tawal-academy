@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log
+.env
+.git
+.gitignore
+*.bak
+*.ps1
+*.sh
+logs/
+uploads/
+public/
+scripts/
+*.log
+*.map
+*.md
+*.json-audit
+# تم السماح بهذه الملفات لاستخدامها في fly ssh console

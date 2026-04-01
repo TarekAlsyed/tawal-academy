@@ -1,0 +1,2 @@
+{"level":"warn","message":"[SECURITY AUDIT] injection_attempt from IP: 127.0.0.1 on POST /api/auth/login","service":"security-service","timestamp":"2026-03-02T14:07:25.123Z"}
+{"level":"warn","message":"[SECURITY AUDIT] invalid_app_signature from IP: 127.0.0.1 on POST /api/admin/login","service":"security-service","timestamp":"2026-03-21T17:05:32.234Z"}

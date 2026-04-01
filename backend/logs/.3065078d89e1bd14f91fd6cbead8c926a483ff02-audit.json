@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "E:\\tarek\\tawal-academy\\backend\\logs\\.3065078d89e1bd14f91fd6cbead8c926a483ff02-audit.json",
+    "files": [
+        {
+            "date": 1771955493946,
+            "name": "E:\\tarek\\tawal-academy\\backend\\logs\\application-2026-02-24.log",
+            "hash": "8dd3b3622ed88a204609fdf8d337e1ed3039ee656cc89e36b1e9a742de6d2d6d"
+        }
+    ],
+    "hashType": "sha256"
+}

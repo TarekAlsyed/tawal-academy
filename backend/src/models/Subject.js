@@ -1,8 +1,62 @@
 const pool = require('../config/database');
 const fs = require('fs');
 const path = require('path');
+const cloudinary = require('../config/cloudinary');
 
 class Subject {
+  // دالة مساعدة لحذف ملف من Cloudinary أو القرص المحلي
+  static async deleteFile(fileUrl) {
+    if (!fileUrl) return;
+
+    // 1. إذا كان الملف على Cloudinary
+    if (fileUrl.includes('res.cloudinary.com')) {
+      try {
+        const publicId = this.getPublicIdFromUrl(fileUrl);
+        if (publicId) {
+          const resourceType = fileUrl.includes('/raw/upload/') ? 'raw' : 'image';
+          await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+        }
+      } catch (err) {
+        console.error('[CLOUDINARY DELETE ERROR]:', err.message);
+      }
+      return;
+    }
+
+    // 2. إذا كان الملف محلياً
+    try {
+      const uploadsPath = process.env.NODE_ENV === 'production' 
+        ? '/app/uploads' 
+        : path.join(__dirname, '../../uploads');
+      const filePath = path.join(uploadsPath, fileUrl.replace("/uploads/", ""));
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (err) {
+      console.error('[LOCAL FILE DELETE ERROR]:', err.message);
+    }
+  }
+
+  // دالة لاستخراج الـ Public ID من رابط Cloudinary
+  static getPublicIdFromUrl(url) {
+    if (!url || !url.includes('res.cloudinary.com')) return null;
+    try {
+      const parts = url.split('/');
+      const uploadIndex = parts.indexOf('upload');
+      if (uploadIndex === -1) return null;
+      
+      // تخطي الـ version (يبدأ بحرف v)
+      const publicIdWithExt = parts.slice(uploadIndex + 2).join('/');
+      
+      // بالنسبة للملفات الـ raw نحتاج الامتداد، أما الصور فلا
+      const isRaw = url.includes('/raw/upload/');
+      if (isRaw) return publicIdWithExt;
+      
+      return publicIdWithExt.split('.').slice(0, -1).join('.');
+    } catch (e) {
+      return null;
+    }
+  }
+
   // إنشاء مادة جديدة
   static async create(termId, name, description, coverImage, status, scheduledAt, createdBy) {
     const result = await pool.query(
@@ -267,30 +321,17 @@ class Subject {
       // حذف المادة من قاعدة البيانات (سيتم حذف السجلات المرتبطة بفضل ON DELETE CASCADE)
       await client.query('DELETE FROM subjects WHERE id = $1', [subjectId]);
 
-      const uploadsPath = process.env.NODE_ENV === 'production' 
-        ? '/app/uploads' 
-        : path.join(__dirname, '../../uploads');
-
-      // حذف صورة الغلاف
+      // حذف الملفات من التخزين (Cloudinary أو القرص المحلي)
       if (subjectResult.rows[0]?.cover_image) {
-        const coverPath = path.join(uploadsPath, subjectResult.rows[0].cover_image.replace("/uploads/", ""));
-        if (fs.existsSync(coverPath)) fs.unlinkSync(coverPath);
+        await this.deleteFile(subjectResult.rows[0].cover_image);
       }
 
-      // حذف ملفات الـ PDF
       for (const pdf of pdfsResult.rows) {
-        if (pdf.file_url) {
-          const pdfPath = path.join(uploadsPath, pdf.file_url.replace("/uploads/", ""));
-          if (fs.existsSync(pdfPath)) fs.unlinkSync(pdfPath);
-        }
+        await this.deleteFile(pdf.file_url);
       }
 
-      // حذف الصور
       for (const img of imagesResult.rows) {
-        if (img.file_url) {
-          const imgPath = path.join(uploadsPath, img.file_url.replace("/uploads/", ""));
-          if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
-        }
+        await this.deleteFile(img.file_url);
       }
 
       await client.query("COMMIT");
@@ -324,13 +365,7 @@ class Subject {
         [pdfId]
       );
       if (result.rows[0] && result.rows[0].file_url) {
-        const uploadsPath = process.env.NODE_ENV === 'production' 
-          ? '/app/uploads' 
-          : path.join(__dirname, '../../uploads');
-        const filePath = path.join(uploadsPath, result.rows[0].file_url.replace("/uploads/", ""));
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
+        await this.deleteFile(result.rows[0].file_url);
       }
       await client.query("COMMIT");
       return result.rows[0];
@@ -363,13 +398,7 @@ class Subject {
         [imageId]
       );
       if (result.rows[0] && result.rows[0].file_url) {
-        const uploadsPath = process.env.NODE_ENV === 'production' 
-          ? '/app/uploads' 
-          : path.join(__dirname, '../../uploads');
-        const filePath = path.join(uploadsPath, result.rows[0].file_url.replace("/uploads/", ""));
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
+        await this.deleteFile(result.rows[0].file_url);
       }
       await client.query("COMMIT");
       return result.rows[0];
@@ -391,19 +420,9 @@ class Subject {
         [subjectId]
       );
       
-      const uploadsPath = process.env.NODE_ENV === 'production' 
-        ? '/app/uploads' 
-        : path.join(__dirname, '../../uploads');
-
       for (const row of result.rows) {
         if (row.file_url) {
-          try {
-            const filePath = path.join(uploadsPath, row.file_url.replace("/uploads/", ""));
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-          } catch (fileError) {
-            console.error(`[FILE DELETE ERROR]: ${row.file_url}`, fileError.message);
-            // نواصل العملية حتى لو فشل حذف ملف واحد من القرص
-          }
+          await this.deleteFile(row.file_url);
         }
       }
       
@@ -427,19 +446,9 @@ class Subject {
         [subjectId]
       );
       
-      const uploadsPath = process.env.NODE_ENV === 'production' 
-        ? '/app/uploads' 
-        : path.join(__dirname, '../../uploads');
-
       for (const row of result.rows) {
         if (row.file_url) {
-          try {
-            const filePath = path.join(uploadsPath, row.file_url.replace("/uploads/", ""));
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-          } catch (fileError) {
-            console.error(`[FILE DELETE ERROR]: ${row.file_url}`, fileError.message);
-            // نواصل العملية حتى لو فشل حذف ملف واحد من القرص
-          }
+          await this.deleteFile(row.file_url);
         }
       }
       

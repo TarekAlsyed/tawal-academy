@@ -43,8 +43,12 @@ const uploadRoutes = require('./routes/uploadRoutes');
 // ============================================
 // This must be BEFORE any middleware to ensure fastest response
 app.get('/api/health', (req, res) => {
-  console.log(`[${new Date().toISOString()}] Health check hit: /api/health`);
-  res.status(200).json({ status: 'ok', service: 'tawal-academy-backend' });
+  res.status(200).json({ 
+    status: 'ok', 
+    service: 'tawal-academy-backend', 
+    version: '2026-04-01-v5-final-fix',
+    build_time: '2026-04-01 20:30:45' // توقيت دقيق بالثواني
+  });
 });
 
 app.get('/health', (req, res) => {
@@ -57,13 +61,20 @@ app.get('/', (req, res) => {
 });
 
 // 1. Basic body parsers - CRITICAL: Needed BEFORE security integrity checks
-app.use(express.json({ limit: '50mb' })); 
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '100mb' })); 
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(cookieParser());
 
 // 2. Debug logging middleware
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.get('Origin') || 'No Origin'}`);
+  const start = Date.now();
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.get('Origin') || 'No Origin'} - Content-Length: ${req.get('Content-Length') || 'N/A'}`);
+  
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Status: ${res.statusCode} - Duration: ${duration}ms`);
+  });
+  
   next();
 });
 

@@ -111,6 +111,7 @@ exports.getSubjectById = async (req, res, next) => {
 exports.addPDFs = async (req, res, next) => {
   try {
     const { id } = req.params;
+    console.log(`[UPLOAD DEBUG] Starting PDF upload for subject ${id}. Content-Length: ${req.get('Content-Length') || 'Unknown'}`);
     
     // Handle both upload.array and upload.fields
     let files = [];
@@ -123,8 +124,11 @@ exports.addPDFs = async (req, res, next) => {
     }
     
     if (files.length === 0) {
+      console.warn(`[UPLOAD DEBUG] No files found in request for subject ${id}`);
       return res.status(400).json({ success: false, message: 'يرجى رفع ملفات PDF' });
     }
+    
+    console.log(`[UPLOAD DEBUG] Processing ${files.length} files. First file size: ${files[0].size}`);
     
     const pdfs = files.map(f => {
       let originalName = f.originalname;
@@ -147,11 +151,14 @@ exports.addPDFs = async (req, res, next) => {
       }
       
       await Admin.logActivity(req.admin.id, 'upload_pdfs', { subjectId: id, count: created.length }, req.ip);
+      console.log(`[UPLOAD DEBUG] Successfully uploaded ${created.length} PDFs to DB`);
       res.status(201).json({ success: true, message: `تم رفع ${created.length} ملف بنجاح`, data: { pdfs: created } });
     } catch (error) {
+      console.error('[UPLOAD DEBUG] Error saving PDFs to database:', error);
       throw error;
     }
   } catch (error) {
+    console.error('[UPLOAD DEBUG] Final Error in addPDFs:', error.message);
     next(error);
   }
 };

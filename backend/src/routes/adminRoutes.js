@@ -89,7 +89,7 @@ router.delete('/terms/:id', adminAuth, checkPermission('subjects', 'delete'), ad
 router.get('/subjects', adminAuth, adminSubjectController.getAllSubjects);
 router.get('/subjects/:id', adminAuth, adminSubjectController.getSubjectById);
 // استخدام cloudinaryUploader للرفع المباشر إلى Cloudinary
-const upload = require('../middlewares/cloudinaryUploader');
+const { upload, uploadToCloudinary } = require('../middlewares/cloudinaryUploader');
 
 // تعريف الحقول المسموح برفعها للمادة
 const subjectUpload = upload.fields([
@@ -98,17 +98,47 @@ const subjectUpload = upload.fields([
   { name: 'images', maxCount: 10 }
 ]);
 
-router.post('/subjects', adminAuth, subjectUpload, checkPermission('subjects', 'add'), subjectValidation, adminSubjectController.createSubject);
-router.put('/subjects/:id', adminAuth, subjectUpload, checkPermission('subjects', 'edit'), subjectValidation, adminSubjectController.updateSubject);
+router.post('/subjects', adminAuth, subjectUpload, uploadToCloudinary, checkPermission('subjects', 'add'), subjectValidation, adminSubjectController.createSubject);
+router.put('/subjects/:id', adminAuth, subjectUpload, uploadToCloudinary, checkPermission('subjects', 'edit'), subjectValidation, adminSubjectController.updateSubject);
 router.delete('/subjects/:id', adminAuth, checkPermission('subjects', 'delete'), adminSubjectController.deleteSubject);
 // مسارات الحذف الجماعي (Bulk Delete) - يجب أن تكون قبل المسارات التي تحتوي على بارامترات مشابهة
 router.delete('/subjects/:id/pdfs/all', adminAuth, checkPermission('subjects', 'delete'), adminSubjectController.deleteAllPDFs);
 router.delete('/subjects/:id/images/all', adminAuth, checkPermission('subjects', 'delete'), adminSubjectController.deleteAllImages);
 router.delete('/subjects/:id/exams/all', adminAuth, checkPermission('subjects', 'delete'), adminSubjectController.deleteAllExams);
 
-router.post('/subjects/:id/pdfs', adminAuth, upload.array('pdfs', 10), checkPermission('subjects', 'upload_pdf'), adminSubjectController.addPDFs);
+// Wrap the PDF upload route with error handling to catch Multer errors specifically
+const handleMulterError = (req, res, next) => {
+  const multer = require('multer');
+  return (err) => {
+    if (err instanceof multer.MulterError) {
+      console.error('[MULTER ERROR]:', err.code, err.message);
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ success: false, message: 'حجم الملف كبير جداً. الحد الأقصى هو 100 ميجابايت.' });
+      }
+      return res.status(400).json({ success: false, message: `خطأ في رفع الملف: ${err.message}` });
+    } else if (err) {
+      console.error('[UPLOAD ERROR]:', err.message);
+      return res.status(500).json({ success: false, message: `حدث خطأ غير متوقع أثناء الرفع: ${err.message}` });
+    }
+    next();
+  };
+};
+
+router.post('/subjects/:id/pdfs', adminAuth, (req, res, next) => {
+  upload.array('pdfs', 50)(req, res, (err) => {
+    if (err) return handleMulterError(req, res, next)(err);
+    next();
+  });
+}, uploadToCloudinary, checkPermission('subjects', 'upload_pdf'), adminSubjectController.addPDFs);
+
 router.delete('/subjects/:subjectId/pdfs/:pdfId', adminAuth, checkPermission('subjects', 'delete_pdf'), adminSubjectController.deletePDF);
-router.post('/subjects/:id/images', adminAuth, upload.array('images', 10), checkPermission('subjects', 'upload_image'), adminSubjectController.addImages);
+
+router.post('/subjects/:id/images', adminAuth, (req, res, next) => {
+  upload.array('images', 50)(req, res, (err) => {
+    if (err) return handleMulterError(req, res, next)(err);
+    next();
+  });
+}, uploadToCloudinary, checkPermission('subjects', 'upload_image'), adminSubjectController.addImages);
 router.delete('/subjects/:subjectId/images/:imageId', adminAuth, checkPermission('subjects', 'delete_image'), adminSubjectController.deleteImage);
 router.post('/subjects/:id/audio', adminAuth, uploadAudio.single('audio'), checkPermission('subjects', 'edit'), adminSubjectController.updateSubject); // Placeholder for audio upload
 
@@ -179,6 +209,39 @@ router.post('/notifications', adminAuth, checkPermission('notifications', 'send'
 // Stats & Logs Routes
 // ============================================
 router.get('/stats/dashboard', adminAuth, checkPermission('stats', 'view'), adminStatsController.getDashboardStats);
+
+// Diagnostic Route
+router.get('/system/status', adminAuth, (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  
+  const uploadDir = path.resolve(__dirname, '../../uploads/temp');
+  const dirExists = fs.existsSync(uploadDir);
+  let dirWritable = false;
+  if (dirExists) {
+    try {
+      fs.accessSync(uploadDir, fs.constants.W_OK);
+      dirWritable = true;
+    } catch (e) {}
+  }
+
+  res.json({
+    success: true,
+    server_time: new Date().toISOString(),
+    version: '2026-04-01-v5-diagnostic',
+    env: process.env.NODE_ENV,
+    storage: {
+      temp_dir: uploadDir,
+      exists: dirExists,
+      writable: dirWritable
+    },
+    security_state: {
+      integrity_bypass: true,
+      signature_bypass: true,
+      waf_bypass: true
+    }
+  });
+});
 router.get('/stats/activity', adminAuth, checkPermission('stats', 'view'), adminStatsController.getActivityLogs);
 router.get('/stats/predictive', adminAuth, checkPermission('stats', 'view'), adminStatsController.getPredictiveAnalysis);
 

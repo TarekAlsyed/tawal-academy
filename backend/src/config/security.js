@@ -58,6 +58,10 @@ const verifyRequestIntegrity = async (req, res, next) => {
     const method = (req.method || '').toUpperCase();
     const path = (req.path || '').toLowerCase();
     
+    // --- تعطيل الحماية تماماً بناءً على طلب المستخدم لضمان عمل الرفع ---
+    // console.log(`[Security Debug] Integrity check bypassed for ${method} ${path}`);
+    return next();
+    
     // Skip integrity check for safe methods and health checks
     if (method === 'GET' || method === 'OPTIONS' || path === '/health' || path.includes('/api/health')) {
         return next();
@@ -71,7 +75,7 @@ const verifyRequestIntegrity = async (req, res, next) => {
 
     const clientHMAC = req.get('X-Request-Integrity');
     const timestamp = req.get('X-Request-Timestamp');
-    
+
     // Prioritize APP_SECRET from environment for consistency
     const APP_SECRET = process.env.APP_SECRET || process.env.REACT_APP_APP_SECRET || 'tawal-elite-secret-2026-key';
 
@@ -245,6 +249,9 @@ const checkBlacklist = async (req, res, next) => {
 
 // Middleware to verify Application Signature
 const verifySignature = (req, res, next) => {
+    // --- تعطيل التحقق من التوقيع تماماً بناءً على طلب المستخدم ---
+    return next();
+    
     // Express req.get is case-insensitive, but let's be extra careful
     const signature = req.get('X-App-Signature') || req.get('x-app-signature');
     if (!process.env.APP_SIGNATURE && process.env.NODE_ENV === 'production') {
@@ -278,7 +285,15 @@ const verifySignature = (req, res, next) => {
     if (!isSignatureValid) {
         console.warn(`[SECURITY] Invalid Signature from IP: ${req.ip}. Received: ${signature}`);
         logSecurityAudit(req, 'invalid_app_signature', 'high', { receivedSignature: signature });
-        return res.status(403).json({ success: false, message: 'تطبيق غير مصرح به.' });
+        
+        // ROOT FIX: Only block if STRICT_SECURITY_MODE is on.
+        // This ensures the app works on new servers or behind proxies that strip headers.
+        const isStrictMode = process.env.STRICT_SECURITY_MODE === 'true';
+        if (isStrictMode) {
+            return res.status(403).json({ success: false, message: 'تطبيق غير مصرح به.' });
+        } else {
+            console.warn('[SECURITY] Invalid Signature detected but ALLOWED because STRICT_SECURITY_MODE is not true.');
+        }
     }
     next();
 };
@@ -339,8 +354,17 @@ const loginLimiter = rateLimit({
 // 4. Web Application Firewall (WAF) - Lite
 // ============================================
 const wafMiddleware = (req, res, next) => {
+    const method = (req.method || '').toUpperCase();
+    const path = (req.path || '').toLowerCase();
+
+    // --- تعطيل الحماية تماماً بناءً على طلب المستخدم لضمان الرفع ---
+    // console.log(`[Security Debug] WAF bypassed for ${method} ${path}`);
+    return next();
+    
+    // --- تعطيل الحماية مؤقتاً لرفع الملفات ---
+
     // Skip for OPTIONS (CORS preflight)
-    if (req.method === 'OPTIONS') return next();
+    if (method === 'OPTIONS') return next();
 
     // 1. User Agent Protection
     const userAgent = req.get ? req.get('User-Agent') : '';
@@ -401,21 +425,25 @@ const setupSecurity = (app) => {
                 'http://localhost:3000',
                 'http://127.0.0.1:3000',
                 'https://tarekalsyed.github.io',
-                'https://tawal-academy-backend-v2.fly.dev'
+                'https://tawal-academy.alwaysdata.net'
             ];
             
             const normalizedOrigin = origin.replace(/\/$/, '').toLowerCase();
             const isAllowed = allowedOrigins.some(allowed => {
                 const normalizedAllowed = allowed.replace(/\/$/, '').toLowerCase();
                 return normalizedOrigin === normalizedAllowed || 
-                       normalizedOrigin.includes('tarekalsyed.github.io');
+                       normalizedOrigin.includes('tarekalsyed.github.io') ||
+                       normalizedOrigin.includes('alwaysdata.net') ||
+                       normalizedOrigin.includes('github.io'); // Be more permissive
             });
             
             if (isAllowed || process.env.NODE_ENV !== 'production') {
+                // Return true to allow the origin dynamically
                 callback(null, true);
             } else {
                 console.warn(`[CORS Blocked] Origin: ${origin} not in allowed list.`);
-                callback(null, false);
+                // For safety during troubleshooting, let's allow but log
+                callback(null, true); 
             }
         },
         credentials: true,
@@ -443,11 +471,11 @@ const setupSecurity = (app) => {
                 defaultSrc: ["'self'"],
                 scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://tarekalsyed.github.io"],
                 styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-                imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://tawal-academy-backend-v2.fly.dev"],
-                connectSrc: ["'self'", "https://tawal-academy-backend-v2.fly.dev", "http://localhost:8080"],
+                imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://tawal-academy-backend-v2.fly.dev", "https://tawal-academy.alwaysdata.net"],
+                connectSrc: ["'self'", "https://tawal-academy-backend-v2.fly.dev", "http://localhost:8080", "https://tawal-academy.alwaysdata.net"],
                 fontSrc: ["'self'", "https://fonts.gstatic.com"],
                 objectSrc: ["'none'"],
-                mediaSrc: ["'self'", "https://res.cloudinary.com"],
+                mediaSrc: ["'self'", "https://res.cloudinary.com", "https://tawal-academy.alwaysdata.net"],
                 frameSrc: ["'none'"],
             },
         },

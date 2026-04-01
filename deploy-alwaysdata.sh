@@ -16,17 +16,22 @@ tar -czf backend.tar.gz --exclude='node_modules' --exclude='.git' backend/
 echo "📤 جاري رفع الملف المضغوط (سريع جداً)..."
 scp backend.tar.gz $USER@$HOST:~
 
-echo "� جاري فك الضغط على السيرفر..."
-ssh $USER@$HOST "mkdir -p $REMOTE_DIR && tar -xzf ~/backend.tar.gz -C $REMOTE_DIR --strip-components=1 && rm ~/backend.tar.gz"
+echo "⚙️ جاري فك الضغط وإعداد البيئة على السيرفر..."
+ssh $USER@$HOST "mkdir -p $REMOTE_DIR && tar -xzf ~/backend.tar.gz -C $REMOTE_DIR --strip-components=1 && \
+                 cd $REMOTE_DIR && \
+                 cp .env.alwaysdata .env && \
+                 rm ~/backend.tar.gz"
 
 if [ $? -eq 0 ]; then
     echo ""
-    echo "✅ تم الرفع بنجاح وبسرعة!"
-    echo "⚙️ الخطوات التالية:"
-    echo "  1. ادخل SSH وشغل npm install على السيرفر."
-    echo "  2. تأكد من إعدادات المتغيرات البيئية في AlwaysData."
+    echo "✅ تم الرفع والإعداد المبدئي بنجاح!"
+    echo "⚙️ الخطوات التالية المطلوبة منك:"
+    echo "  1. ادخل SSH للمجلد: cd $REMOTE_DIR"
+    echo "  2. شغل الأمر: npm install --production"
+    echo "  3. تأكد من إعداد 'Site' في لوحة تحكم AlwaysData ليشير إلى: $REMOTE_DIR/src/server.js"
+    echo "  4. تأكد من أن 'Command' هو: node src/server.js"
 else
     echo ""
-    echo "❌ فشل الرفع السريع!"
+    echo "❌ فشل الرفع أو الإعداد!"
     exit 1
 fi

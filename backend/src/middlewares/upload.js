@@ -68,7 +68,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit (To match Cloudinary free tier restrictions)
+    fileSize: 500 * 1024 * 1024, // زيادة الحد لـ 500 ميجابايت لضمان عدم وجود عوائق
   },
   fileFilter: fileFilter,
 });
@@ -93,7 +93,7 @@ const audioFileFilter = (req, file, cb) => {
 const uploadAudio = multer({
   storage: storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
+    fileSize: 500 * 1024 * 1024, // 500MB
   },
   fileFilter: audioFileFilter,
 });

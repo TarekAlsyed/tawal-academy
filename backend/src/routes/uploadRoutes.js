@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const upload = require('../middlewares/cloudinaryUploader');
+const { upload, uploadToCloudinary } = require('../middlewares/cloudinaryUploader');
 
-router.post('/upload', upload.single('file'), (req, res) => {
+router.post('/upload', upload.single('file'), uploadToCloudinary, (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'No file uploaded.' });
   }

@@ -1,0 +1,600 @@
+/* ════════════════════════════════════════════════════════════════
+   🎓 STUDENT INTERFACE - MODERN PROFESSIONAL DESIGN
+   واجهة الطالب - تصميم عصري احترافي متكامل
+   ════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Modern Professional Palette */
+  --student-primary: #4f46e5;         /* Indigo 600 */
+  --student-primary-light: #818cf8;   /* Indigo 400 */
+  --student-primary-dark: #3730a3;    /* Indigo 800 */
+  
+  --student-secondary: #10b981;       /* Emerald 500 */
+  --student-accent: #f59e0b;          /* Amber 500 (Points/Gold) */
+  
+  --student-bg-app: #f4f7fa;          /* Very light bluish-gray */
+  --student-bg-surface: #ffffff;      /* White cards/surfaces */
+  --student-bg-subtle: #f8fafc;       /* Slate 50 */
+  
+  /* Status Colors */
+  --student-success: #10b981;
+  --student-warning: #f59e0b;
+  --student-danger: #ef4444;
+  --student-info: #3b82f6;
+  
+  /* Text Colors (Slate Palette) */
+  --student-text-primary: #1e293b;    /* Slate 800 */
+  --student-text-secondary: #475569;  /* Slate 600 */
+  --student-text-muted: #94a3b8;     /* Slate 400 */
+  --student-text-on-primary: #ffffff;
+  
+  /* Borders */
+  --student-border: #e2e8f0;          /* Slate 200 */
+  --student-border-focus: #4f46e5;
+  
+  /* Shadows - Modern & Subtle */
+  --student-shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --student-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --student-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --student-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  
+  /* Transitions */
+  --student-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* Border Radius */
+  --student-radius-sm: 0.375rem;
+  --student-radius-md: 0.5rem;
+  --student-radius-lg: 0.75rem;
+  --student-radius-xl: 1rem;
+}
+
+/* Image Anti-Distortion & Quality */
+img {
+  max-width: 100%;
+  height: auto;
+  object-fit: cover;
+  image-rendering: -webkit-optimize-contrast; /* Clearer images */
+}
+
+/* ═══ GLOBAL RESET & BASE ═══ */
+.student-page {
+  min-height: 100vh;
+  background-color: var(--student-bg-app);
+  color: var(--student-text-primary);
+  direction: rtl;
+  font-family: 'Tajawal', sans-serif;
+  overflow-x: hidden;
+}
+
+/* ═══ GLOBAL RESPONSIVE IMPROVEMENTS ═══ */
+@media (max-width: 1200px) {
+  .student-container, .header-content, .terms-header-content, .terms-main, .student-subject-container {
+    max-width: 100%;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --student-radius-lg: 0.5rem;
+    --student-radius-xl: 0.75rem;
+  }
+
+  body {
+    font-size: 14px;
+  }
+
+  .btn-student {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+
+  /* Fix for horizontal scroll on mobile */
+  .student-page {
+    overflow-x: hidden;
+    width: 100%;
+    position: relative;
+  }
+
+  /* Improve Card Padding on Mobile */
+  .card-student, .admin-card, .question-card {
+    padding: 1.25rem !important;
+  }
+}
+
+/* ═══ SYSTEM ICON FIX (WINDOWS/ANDROID) ═══ */
+/* Ensure icons look consistent across platforms */
+svg {
+  display: inline-block;
+  vertical-align: middle;
+  shape-rendering: inherit;
+}
+
+/* ═══ TEXT WRAPPING FIX ═══ */
+/* Prevent long text from breaking layout on small screens */
+h1, h2, h3, h4, h5, h6, p, span, div {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Buttons */
+.btn-student {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  border-radius: var(--student-radius-md);
+  transition: var(--student-transition);
+  cursor: pointer;
+  border: 1px solid transparent;
+  outline: none;
+}
+
+.btn-student-primary {
+  background-color: var(--student-primary);
+  color: var(--student-text-on-primary);
+}
+
+.btn-student-primary:hover {
+  background-color: var(--student-primary-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--student-shadow-md);
+}
+
+.btn-student-secondary {
+  background-color: #f1f5f9; /* Slate 100 - Solid light gray background */
+  color: var(--student-text-secondary);
+  border-color: var(--student-border);
+  box-shadow: var(--student-shadow-sm);
+}
+
+.btn-student-secondary:hover {
+  background-color: #e2e8f0; /* Slate 200 */
+  border-color: var(--student-primary);
+  color: var(--student-primary);
+}
+
+/* Cards */
+.card-student {
+  background-color: var(--student-bg-surface);
+  border-radius: var(--student-radius-lg);
+  box-shadow: var(--student-shadow-sm);
+  border: 1px solid var(--student-border);
+  transition: var(--student-transition);
+  overflow: hidden;
+}
+
+.card-student:hover {
+  box-shadow: var(--student-shadow-lg);
+  transform: translateY(-2px);
+}
+
+/* Inputs */
+.input-student {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: var(--student-radius-md);
+  border: 1px solid var(--student-border);
+  background-color: var(--student-bg-surface);
+  color: var(--student-text-primary);
+  font-size: 0.9375rem;
+  transition: var(--student-transition);
+  outline: none;
+}
+
+.input-student:focus {
+  border-color: var(--student-primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+/* ═══ STUDENT HEADER ═══ */
+.student-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background-color: var(--student-bg-surface);
+  border-bottom: 1px solid var(--student-border);
+  box-shadow: var(--student-shadow-sm);
+}
+
+.student-header-content {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.student-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+}
+
+.student-logo-icon {
+  width: 40px;
+  height: 40px;
+  background-color: var(--student-primary);
+  border-radius: var(--student-radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.25rem;
+  box-shadow: var(--student-shadow-md);
+}
+
+.student-logo-text {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--student-text-primary);
+  letter-spacing: -0.025em;
+}
+
+.student-user-section {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.student-points {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #fffbeb; /* Amber 50 */
+  border-radius: 9999px;
+  border: 1px solid #fde68a; /* Amber 200 */
+  color: #92400e; /* Amber 800 */
+  font-weight: 700;
+  font-size: 0.875rem;
+  transition: var(--student-transition);
+}
+
+.student-points:hover {
+  background-color: #fef3c7;
+  transform: translateY(-1px);
+}
+
+.student-points-icon {
+  color: var(--student-accent);
+  font-size: 1.125rem;
+}
+
+.student-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  background-color: var(--student-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 1rem;
+  border: 2px solid white;
+  box-shadow: var(--student-shadow-sm);
+  cursor: pointer;
+  transition: var(--student-transition);
+}
+
+.student-avatar:hover {
+  transform: scale(1.05);
+  box-shadow: var(--student-shadow-md);
+}
+
+.student-logout-btn {
+  color: var(--student-text-secondary);
+  padding: 0.5rem;
+  border-radius: var(--student-radius-md);
+  cursor: pointer;
+  transition: var(--student-transition);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.student-logout-btn:hover {
+  background-color: #fee2e2; /* Red 100 */
+  color: var(--student-danger);
+}
+
+/* ═══ MAIN CONTAINER ═══ */
+.student-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+/* ═══ SUBJECT CARDS ═══ */
+.student-subjects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.student-subject-card {
+  composes: card-student;
+  display: flex;
+  flex-direction: column;
+}
+
+.student-card-cover {
+  position: relative;
+  height: 180px;
+  background-color: var(--student-bg-subtle);
+  overflow: hidden;
+}
+
+.student-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: var(--student-transition);
+}
+
+.student-subject-card:hover .student-card-cover img {
+  transform: scale(1.05);
+}
+
+.student-card-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 1rem;
+}
+
+.student-card-title {
+  color: white;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.student-card-content {
+  padding: 1.25rem;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.student-card-desc {
+  color: var(--student-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.student-card-stats {
+  display: flex;
+  gap: 1rem;
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--student-border);
+}
+
+.student-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  color: var(--student-text-secondary);
+  font-weight: 500;
+}
+
+.student-stat svg {
+  color: var(--student-primary);
+}
+
+/* Progress */
+.student-progress {
+  margin-top: 1rem;
+}
+
+.student-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--student-text-secondary);
+  margin-bottom: 0.375rem;
+}
+
+.student-progress-bar {
+  height: 6px;
+  background-color: var(--student-bg-subtle);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.student-progress-fill {
+  height: 100%;
+  background-color: var(--student-primary);
+  border-radius: 9999px;
+  transition: width 1s ease-out;
+}
+
+/* ═══ TABS ═══ */
+.student-tabs-buttons {
+  display: flex;
+  gap: 0.5rem;
+  background-color: var(--student-bg-subtle);
+  padding: 0.375rem;
+  border-radius: var(--student-radius-lg);
+  border: 1px solid var(--student-border);
+  margin-bottom: 1.5rem;
+}
+
+.student-tab-btn {
+  flex: 1;
+  padding: 0.625rem;
+  border: none;
+  background: transparent;
+  color: var(--student-text-secondary);
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: var(--student-radius-md);
+  cursor: pointer;
+  transition: var(--student-transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.student-tab-btn:hover {
+  background-color: rgba(0,0,0,0.03);
+  color: var(--student-text-primary);
+}
+
+.student-tab-btn.active {
+  background-color: var(--student-bg-surface);
+  color: var(--student-primary);
+  box-shadow: var(--student-shadow-sm);
+}
+
+.student-tab-badge {
+  background-color: var(--student-primary-light);
+  color: white;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+}
+
+/* ═══ TABLES ═══ */
+.student-table-container {
+  background-color: var(--student-bg-surface);
+  border-radius: var(--student-radius-lg);
+  border: 1px solid var(--student-border);
+  overflow: hidden;
+  box-shadow: var(--student-shadow-sm);
+}
+
+.student-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.student-table th {
+  background-color: var(--student-bg-subtle);
+  padding: 1rem;
+  text-align: right;
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: var(--student-text-secondary);
+  border-bottom: 1px solid var(--student-border);
+}
+
+.student-table td {
+  padding: 1rem;
+  font-size: 0.9375rem;
+  border-bottom: 1px solid var(--student-border);
+}
+
+.student-table tr:last-child td {
+  border-bottom: none;
+}
+
+.student-table tr:hover td {
+  background-color: var(--student-bg-subtle);
+}
+
+/* ═══ MODALS ═══ */
+.student-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.75); /* Slate 900 with opacity */
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 1.5rem;
+}
+
+.student-modal {
+  background-color: var(--student-bg-surface);
+  border-radius: var(--student-radius-xl);
+  box-shadow: var(--student-shadow-xl);
+  width: 100%;
+  max-width: 500px;
+  overflow: hidden;
+  animation: modal-appear 0.3s ease-out;
+}
+
+@keyframes modal-appear {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.student-modal-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--student-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.student-modal-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.student-modal-body {
+  padding: 1.5rem;
+}
+
+.student-modal-footer {
+  padding: 1rem 1.5rem;
+  background-color: var(--student-bg-subtle);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+/* ═══ RESPONSIVE ═══ */
+@media (max-width: 768px) {
+  .student-header-content {
+    padding: 0.75rem 1rem;
+  }
+  
+  .student-logo-text {
+    font-size: 1.25rem;
+  }
+  
+  .student-user-section {
+    gap: 0.75rem;
+  }
+  
+  .student-points-text {
+    display: none;
+  }
+  
+  .student-container {
+    padding: 1.5rem 1rem;
+  }
+  
+  .student-subjects-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   END - MODERN STUDENT DESIGN
+   ════════════════════════════════════════════════════════════════ */

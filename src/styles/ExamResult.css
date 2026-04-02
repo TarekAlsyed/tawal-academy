@@ -1,261 +1,333 @@
-/* صفحة نتيجة الامتحان */
-.result-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+/* 🏆 EXAM RESULT - PREMIUM DESIGN */
+
+.result-page-wrapper {
+  background-color: var(--student-bg-app);
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
 }
 
-.result-card {
-  background: white;
-  padding: 50px 40px;
-  border-radius: 20px;
-  text-align: center;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  max-width: 500px;
-  width: 100%;
-  position: relative;
-  overflow: hidden;
-}
-
-.result-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 5px;
-  background: linear-gradient(90deg, #28a745, #20c997);
-}
-
-.result-card.failed::before {
-  background: linear-gradient(90deg, #dc3545, #fd7e14);
-}
-
-.result-icon {
-  font-size: 4rem;
-  margin-bottom: 20px;
-  animation: bounce 1s ease-in-out;
-}
-
-.result-card.success .result-icon {
-  color: #28a745;
-}
-
-.result-card.failed .result-icon {
-  color: #dc3545;
-}
-
-@keyframes bounce {
-  0%, 20%, 50%, 80%, 100% {
-    transform: translateY(0);
-  }
-  40% {
-    transform: translateY(-20px);
-  }
-  60% {
-    transform: translateY(-10px);
-  }
-}
-
-.result-card h1 {
-  margin: 0 0 30px 0;
-  font-size: 2.2rem;
-  font-weight: 600;
-  color: #343a40;
-}
-
-.result-card.success h1 {
-  color: #28a745;
-}
-
-.result-card.failed h1 {
-  color: #dc3545;
-}
-
-/* دائرة النتيجة */
-.score-display {
-  margin: 30px 0;
-}
-
-.score-circle {
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.result-main-content {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 3rem 1.5rem;
+  position: relative;
+}
+
+/* User Stats in Header */
+.user-stats-mini {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.points-badge-result {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 999px;
+  color: #92400e;
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+
+.user-avatar-mini {
+  width: 36px;
+  height: 36px;
+  background: var(--student-primary);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  border: 2px solid white;
+  box-shadow: var(--student-shadow-sm);
+}
+
+/* Premium Result Card */
+.result-card-premium {
+  background: white;
+  width: 100%;
+  max-width: 600px;
+  border-radius: 2rem;
+  box-shadow: var(--student-shadow-xl);
+  overflow: hidden;
+  position: relative;
+  animation: card-entrance 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes card-entrance {
+  from { opacity: 0; transform: translateY(30px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.result-header-deco {
+  height: 120px;
+  background: linear-gradient(135deg, var(--student-primary) 0%, var(--student-primary-dark) 100%);
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.is-success .result-header-deco {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.is-failed .result-header-deco {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.status-icon-wrapper {
+  width: 100px;
+  height: 100px;
+  background: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: -50px;
+  box-shadow: var(--student-shadow-lg);
+  z-index: 10;
+}
+
+.status-icon {
+  font-size: 4rem;
+}
+
+.is-success .status-icon { color: #10b981; }
+.is-failed .status-icon { color: #ef4444; }
+
+.result-body {
+  padding: 4.5rem 2.5rem 3rem;
+  text-align: center;
+}
+
+.result-title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--student-text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.result-subtitle {
+  color: var(--student-text-secondary);
+  font-size: 1rem;
+  margin-bottom: 2.5rem;
+  line-height: 1.6;
+}
+
+/* Score Visualization */
+.score-visualization {
+  margin-bottom: 2.5rem;
+}
+
+.score-ring {
+  width: 180px;
+  height: 180px;
   margin: 0 auto;
   position: relative;
-  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
-  animation: pulse 2s infinite;
 }
 
-@keyframes pulse {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
-  100% {
-    transform: scale(1);
-  }
+.score-ring svg {
+  transform: rotate(-90deg);
 }
 
-.score-number {
-  font-size: 2.5rem;
+.ring-bg {
+  fill: none;
+  stroke: var(--student-bg-subtle);
+  stroke-width: 8;
+}
+
+.ring-fill {
+  fill: none;
+  stroke: var(--student-primary);
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-dasharray: 283;
+  transition: stroke-dashoffset 1s ease-out;
+}
+
+.is-success .ring-fill { stroke: #10b981; }
+.is-failed .ring-fill { stroke: #ef4444; }
+
+.score-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+}
+
+.score-text .number {
+  font-size: 3rem;
+  font-weight: 900;
+  color: var(--student-text-primary);
+  line-height: 1;
+}
+
+.score-text .label {
+  font-size: 0.75rem;
   font-weight: 700;
-  color: white;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  color: var(--student-text-muted);
+  text-transform: uppercase;
+  margin-top: 0.25rem;
 }
 
-/* تفاصيل النتيجة */
-.result-details {
-  margin: 30px 0;
-  padding: 20px;
-  background: #f8f9fa;
-  border-radius: 15px;
+/* Points Celebration */
+.points-celebration {
+  margin-bottom: 2.5rem;
 }
 
-.detail-item {
-  display: flex;
-  justify-content: space-between;
+.points-earned-card {
+  background: #fffbeb;
+  border: 2px dashed #f59e0b;
+  border-radius: var(--student-radius-lg);
+  padding: 1.25rem;
+  display: inline-flex;
   align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid #e9ecef;
+  gap: 1.25rem;
+  animation: pulse-gold 2s infinite;
 }
 
-.detail-item:last-child {
-  border-bottom: none;
+@keyframes pulse-gold {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  70% { transform: scale(1.02); box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
 }
 
-.detail-item span {
-  color: #6c757d;
-  font-size: 1rem;
+.award-icon {
+  font-size: 2.5rem;
+  color: #f59e0b;
 }
 
-.detail-item strong {
-  color: #343a40;
-  font-size: 1.1rem;
+.points-info {
+  text-align: right;
+}
+
+.points-info .label {
+  display: block;
+  font-size: 0.8125rem;
+  color: #92400e;
   font-weight: 600;
 }
 
-/* رسالة إعادة المحاولة */
-.retry-message {
-  color: #6c757d;
-  font-size: 1rem;
-  margin: 20px 0;
-  padding: 15px;
-  background: #fff3cd;
-  border-radius: 10px;
-  border-left: 4px solid #ffc107;
+.points-info .value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #b45309;
 }
 
-/* أزرار الإجراءات */
-.result-actions {
+/* Stats Summary */
+.stats-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 3rem;
+}
+
+.stat-box {
+  background: var(--student-bg-subtle);
+  padding: 1rem;
+  border-radius: var(--student-radius-lg);
   display: flex;
-  gap: 15px;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--student-text-muted);
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.stat-box.correct .stat-value { color: #10b981; }
+.stat-box.wrong .stat-value { color: #ef4444; }
+.stat-box.total .stat-value { color: var(--student-primary); }
+
+/* Action Buttons */
+.result-action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.action-btn {
+  padding: 1rem 2rem;
+  border-radius: var(--student-radius-lg);
+  font-weight: 700;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  margin-top: 30px;
-}
-
-.btn-primary,
-.btn-secondary {
-  padding: 12px 25px;
-  border: none;
-  border-radius: 25px;
-  font-size: 1rem;
-  font-weight: 600;
+  gap: 0.75rem;
   cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-decoration: none;
+  transition: var(--student-transition);
+  border: none;
 }
 
-.btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.primary-btn {
+  background: var(--student-primary);
   color: white;
-  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
 }
 
-.btn-primary:hover {
+.primary-btn:hover {
+  background: var(--student-primary-dark);
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 6px 15px rgba(79, 70, 229, 0.4);
 }
 
-.btn-secondary {
-  background: #6c757d;
-  color: white;
-  box-shadow: 0 5px 15px rgba(108, 117, 125, 0.3);
+.secondary-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
 }
 
-.btn-secondary:hover {
-  background: #5a6268;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(108, 117, 125, 0.4);
+.outline-btn {
+  background: white;
+  border: 1px solid var(--student-border);
+  color: var(--student-text-secondary);
 }
 
-/* تصميم متجاوب */
-@media (max-width: 768px) {
-  .result-container {
-    padding: 15px;
-  }
-  
-  .result-card {
-    padding: 30px 20px;
-    margin: 20px;
-  }
-  
-  .result-card h1 {
-    font-size: 1.8rem;
-  }
-  
-  .score-circle {
-    width: 120px;
-    height: 120px;
-  }
-  
-  .score-number {
-    font-size: 2rem;
-  }
-  
-  .result-actions {
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  .btn-primary,
-  .btn-secondary {
-    width: 100%;
-    justify-content: center;
-  }
+.outline-btn:hover {
+  background: var(--student-bg-subtle);
+  border-color: var(--student-primary-light);
+  color: var(--student-primary);
 }
 
-@media (max-width: 480px) {
-  .result-card {
-    padding: 25px 15px;
+/* Responsive */
+@media (max-width: 640px) {
+  .result-body {
+    padding: 4.5rem 1.5rem 2.5rem;
   }
   
-  .result-card h1 {
+  .result-title {
     font-size: 1.5rem;
   }
   
-  .score-circle {
-    width: 100px;
-    height: 100px;
+  .score-ring {
+    width: 140px;
+    height: 140px;
   }
   
-  .score-number {
-    font-size: 1.5rem;
+  .score-text .number {
+    font-size: 2.25rem;
   }
   
-  .detail-item strong {
-    font-size: 1rem;
+  .secondary-actions {
+    grid-template-columns: 1fr;
   }
 }

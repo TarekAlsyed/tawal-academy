@@ -34,9 +34,7 @@ router.get('/security/auto-saved-images', adminAuth, checkPermission('stats', 'v
 router.get('/security/auto-saved-images/stats', adminAuth, checkPermission('stats', 'view'), adminSecurityController.getAutoSavedImagesStats);
 router.get('/security/settings', adminAuth, checkPermission('stats', 'view'), adminSecurityController.getSystemSettings);
 router.post('/security/settings', adminAuth, checkPermission('stats', 'edit'), adminSecurityController.updateSystemSetting);
-router.post('/security/logs/clear', adminAuth, checkPermission('stats', 'delete'), adminSecurityController.clearOldLogs);
 router.post('/security/blacklist/reset', adminAuth, checkPermission('admins', 'edit'), adminSecurityController.resetIPBlacklist);
-router.post('/security/factory-reset', adminAuth, checkPermission('stats', 'delete'), adminSecurityController.factoryReset);
 
 // ============================================
 // Approvals Routes (الموافقات)

@@ -10,3 +10,9 @@
 {"level":"warn","message":"[SECURITY AUDIT] injection_attempt from IP: 127.0.0.1 on POST /api/auth/login","service":"security-service","timestamp":"2026-03-02T14:07:25.123Z"}
 {"level":"info","message":"127.0.0.1 - - [02/Mar/2026:14:07:25 +0000] \"POST /api/auth/login HTTP/1.1\" 403 40 \"-\" \"axios/1.13.5\"","service":"security-service","timestamp":"2026-03-02T14:07:25.125Z"}
 {"level":"warn","message":"[SECURITY AUDIT] invalid_app_signature from IP: 127.0.0.1 on POST /api/admin/login","service":"security-service","timestamp":"2026-03-21T17:05:32.234Z"}
+{"level":"warn","message":"[SECURITY AUDIT] injection_attempt from IP: 127.0.0.1 on GET /api/subjects","service":"security-service","timestamp":"2026-04-02T15:19:32.681Z"}
+{"level":"warn","message":"[SECURITY AUDIT] payload_tampering_detected from IP: 127.0.0.1 on POST /api/auth/login","service":"security-service","timestamp":"2026-04-02T15:19:33.546Z"}
+{"level":"warn","message":"[SECURITY AUDIT] injection_attempt from IP: 127.0.0.1 on GET /api/subjects","service":"security-service","timestamp":"2026-04-02T15:20:12.644Z"}
+{"level":"warn","message":"[SECURITY AUDIT] payload_tampering_detected from IP: 127.0.0.1 on POST /api/auth/login","service":"security-service","timestamp":"2026-04-02T15:20:13.416Z"}
+{"level":"warn","message":"[SECURITY AUDIT] injection_attempt from IP: 127.0.0.1 on GET /api/subjects","service":"security-service","timestamp":"2026-04-02T15:25:45.368Z"}
+{"level":"warn","message":"[SECURITY AUDIT] payload_tampering_detected from IP: 127.0.0.1 on POST /api/auth/login","service":"security-service","timestamp":"2026-04-02T15:25:45.421Z"}

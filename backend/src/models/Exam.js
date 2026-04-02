@@ -22,7 +22,18 @@ class Exam {
        WHERE e.id = $1`,
       [examId]
     );
-    return result.rows[0];
+    
+    const exam = result.rows[0];
+    // Ensure dates are returned as ISO strings in UTC to prevent timezone shifts
+    if (exam) {
+      if (exam.start_date && exam.start_date instanceof Date) {
+        exam.start_date = exam.start_date.toISOString();
+      }
+      if (exam.end_date && exam.end_date instanceof Date) {
+        exam.end_date = exam.end_date.toISOString();
+      }
+    }
+    return exam;
   }
 
   // الحصول على امتحان مع الأسئلة (للطالب)
@@ -40,6 +51,14 @@ class Exam {
 
       if (examResult.rows.length === 0) return null;
       const exam = examResult.rows[0];
+
+      // Ensure dates are returned as ISO strings in UTC
+      if (exam.start_date && exam.start_date instanceof Date) {
+        exam.start_date = exam.start_date.toISOString();
+      }
+      if (exam.end_date && exam.end_date instanceof Date) {
+        exam.end_date = exam.end_date.toISOString();
+      }
 
       // التحقق من الجدولة الزمنية
       const now = new Date();

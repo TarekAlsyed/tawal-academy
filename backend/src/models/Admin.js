@@ -1,5 +1,6 @@
 const pool = require('../config/database');
 const bcrypt = require('bcryptjs');
+const { encrypt, decrypt } = require('../utils/encryption');
 
 class Admin {
   // إنشاء مشرف جديد
@@ -70,6 +71,11 @@ class Admin {
       throw new Error('الإيميل أو كلمة المرور غير صحيحة');
     }
 
+    // فك تشفير MFA Secret إذا وجد
+    if (admin.mfa_secret) {
+      admin.mfa_secret = decrypt(admin.mfa_secret);
+    }
+
     // إرجاع البيانات بدون كلمة المرور
     const { password: _, ...adminData } = admin;
     return adminData;
@@ -81,13 +87,20 @@ class Admin {
       'SELECT id, name, email, permissions, permissions_detailed, is_super_admin, mfa_enabled, mfa_secret, created_at FROM admins WHERE id = $1',
       [adminId]
     );
-    return result.rows[0];
+    const admin = result.rows[0];
+    if (admin && admin.mfa_secret) {
+      admin.mfa_secret = decrypt(admin.mfa_secret);
+    }
+    return admin;
   }
 
   static async updateMFA(adminId, enabled, secret = null) {
+    // تشفير MFA Secret قبل الحفظ
+    const encryptedSecret = secret ? encrypt(secret) : null;
+    
     const result = await pool.query(
       'UPDATE admins SET mfa_enabled = $1, mfa_secret = COALESCE($2, mfa_secret) WHERE id = $3 RETURNING id, mfa_enabled',
-      [enabled, secret, adminId]
+      [enabled, encryptedSecret, adminId]
     );
     return result.rows[0];
   }

@@ -42,13 +42,18 @@ exports.login = async (req, res, next) => {
       console.error('⚠️ Failed to log student activity:', logError.message);
     }
 
-    // Cookie Security Options
+    // Cookie Security Options (Elite Defense)
     const cookieOptions = {
       httpOnly: true, // Prevent XSS access
-      secure: process.env.NODE_ENV === 'production', // Send only over HTTPS
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // CSRF protection
+      secure: true, // ALWAYS secure in production/staging for HTTPS
+      sameSite: 'strict', // Strong CSRF protection
       path: '/' // Ensure cookie is accessible globally
     };
+
+    if (process.env.NODE_ENV !== 'production') {
+        cookieOptions.secure = false;
+        cookieOptions.sameSite = 'lax';
+    }
 
     res.cookie('refreshToken', refreshToken, {
       ...cookieOptions,

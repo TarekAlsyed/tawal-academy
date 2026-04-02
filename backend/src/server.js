@@ -38,32 +38,33 @@ const PORT = process.env.PORT || 8080;
 const IP = process.env.IP || '0.0.0.0'; // Support AlwaysData IP or default to 0.0.0.0
 const uploadRoutes = require('./routes/uploadRoutes');
 
+// 1. Basic body parsers - CRITICAL: Needed BEFORE security integrity checks
+app.use(express.json({ limit: '100mb' })); 
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+app.use(cookieParser());
+
+// 2. Apply Advanced Security Configuration (WAF, Logging, Throttling, etc.)
+const { logger, loginLimiter } = setupSecurity(app);
+
 // ============================================
 // 0. IMMEDIATE HEALTH CHECK (For Cloud Providers)
 // ============================================
-// This must be BEFORE any middleware to ensure fastest response
 app.get('/api/health', (req, res) => {
   res.status(200).json({ 
     status: 'ok', 
     service: 'tawal-academy-backend', 
     version: '2026-04-01-v5-final-fix',
-    build_time: '2026-04-01 20:30:45' // توقيت دقيق بالثواني
+    build_time: '2026-04-01 20:30:45'
   });
 });
 
 app.get('/health', (req, res) => {
-  console.log(`[${new Date().toISOString()}] Health check hit: /health`);
   res.status(200).json({ status: 'ok', service: 'tawal-academy-backend' });
 });
 
 app.get('/', (req, res) => {
   res.status(200).send('Tawal Academy API is Running');
 });
-
-// 1. Basic body parsers - CRITICAL: Needed BEFORE security integrity checks
-app.use(express.json({ limit: '100mb' })); 
-app.use(express.urlencoded({ extended: true, limit: '100mb' }));
-app.use(cookieParser());
 
 // 2. Debug logging middleware
 app.use((req, res, next) => {
@@ -77,10 +78,6 @@ app.use((req, res, next) => {
   
   next();
 });
-
-// 3. Apply Advanced Security Configuration (WAF, Logging, Throttling, etc.)
-// Now it will have access to req.body for HMAC verification
-const { logger, loginLimiter } = setupSecurity(app);
 
 app.use('/api/auth', loginLimiter);
 app.use('/api/admin/login', loginLimiter);

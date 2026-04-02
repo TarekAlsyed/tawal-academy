@@ -88,12 +88,18 @@ exports.login = async (req, res, next) => {
       console.error('⚠️ Failed to log activity or recovery:', logError.message);
     }
 
+    // Cookie Security Options (Elite Defense)
     const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      path: '/'
+      httpOnly: true, // Prevent XSS access
+      secure: true, // ALWAYS secure in production/staging for HTTPS
+      sameSite: 'strict', // Strong CSRF protection
+      path: '/' // Ensure cookie is accessible globally
     };
+
+    if (process.env.NODE_ENV !== 'production') {
+        cookieOptions.secure = false;
+        cookieOptions.sameSite = 'lax';
+    }
 
     res.cookie('adminAccessToken', accessToken, { 
       ...cookieOptions,

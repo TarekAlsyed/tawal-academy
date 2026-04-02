@@ -58,10 +58,6 @@ const verifyRequestIntegrity = async (req, res, next) => {
     const method = (req.method || '').toUpperCase();
     const path = (req.path || '').toLowerCase();
     
-    // --- تعطيل الحماية تماماً بناءً على طلب المستخدم لضمان عمل الرفع ---
-    // console.log(`[Security Debug] Integrity check bypassed for ${method} ${path}`);
-    return next();
-    
     // Skip integrity check for safe methods and health checks
     if (method === 'GET' || method === 'OPTIONS' || path === '/health' || path.includes('/api/health')) {
         return next();
@@ -73,19 +69,26 @@ const verifyRequestIntegrity = async (req, res, next) => {
         return next();
     }
 
+    // Allow bypass for file uploads if not in strict mode
+    const isStrictMode = process.env.STRICT_SECURITY_MODE === 'true';
+    const isFileUpload = req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data');
+    
+    if (isFileUpload && !isStrictMode) {
+        // console.log(`[Security Debug] Integrity check bypassed for file upload: ${method} ${path}`);
+        return next();
+    }
+
     const clientHMAC = req.get('X-Request-Integrity');
     const timestamp = req.get('X-Request-Timestamp');
 
     // Prioritize APP_SECRET from environment for consistency
     const APP_SECRET = process.env.APP_SECRET || process.env.REACT_APP_APP_SECRET || 'tawal-elite-secret-2026-key';
 
-    const isStrictMode = await settingsService.get('security_strict_mode', false);
-
     if (!clientHMAC || !timestamp) {
         logSecurityAudit(req, 'missing_integrity_header', 'high');
         console.warn(`[Security Warning] Missing integrity headers for ${method} ${path}`);
         // For stability, we'll allow this but log it, unless STRICT_MODE is on
-        if (isStrictMode || process.env.STRICT_SECURITY_MODE === 'true') {
+        if (isStrictMode) {
             return res.status(403).json({ 
                 success: false, 
                 message: 'بيانات الحماية مفقودة. يرجى استخدام التطبيق الرسمي.' 
@@ -95,10 +98,12 @@ const verifyRequestIntegrity = async (req, res, next) => {
     }
 
     const now = Date.now();
-    // 30 minutes tolerance (increased for stability during troubleshooting)
+    // 30 minutes tolerance
     if (Math.abs(now - parseInt(timestamp)) > 1800000) {
         logSecurityAudit(req, 'replay_attack_detected', 'low');
-        console.warn(`[Security Warning] Clock drift detected: ${Math.abs(now - parseInt(timestamp))}ms`);
+        if (isStrictMode) {
+            return res.status(403).json({ success: false, message: 'انتهت صلاحية الطلب (Replay Attack Prevention)' });
+        }
     }
 
     try {
@@ -110,39 +115,16 @@ const verifyRequestIntegrity = async (req, res, next) => {
         if (clientHMAC !== serverHMAC) {
             logSecurityAudit(req, 'payload_tampering_detected', 'high');
             
-            // Log details for debugging in development/staging
-            const signingString = `${timestamp}.${JSON.stringify(bodyToSign, Object.keys(bodyToSign).sort())}`;
-            
-            console.warn(`[Security] Integrity Mismatch:
-                Client HMAC: ${clientHMAC}
-                Server HMAC: ${serverHMAC}
-                Path: ${path}
-                Method: ${method}
-                Timestamp: ${timestamp}
-                Body: ${JSON.stringify(bodyToSign)}
-                Signing String: "${signingString}"`);
-                
-            // THE "ROOT" FIX: If we have a mismatch, we log it but ALLOW the request to proceed
-            // UNLESS Strict Security Mode is explicitly enabled. This ensures the app works 
-            // while we debug the security layers.
-            if (!isStrictMode && process.env.STRICT_SECURITY_MODE !== 'true') {
-                console.warn('[SECURITY] Integrity Mismatch detected but ALLOWED because STRICT_SECURITY_MODE is not true.');
-                return next();
+            if (isStrictMode) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'تم اكتشاف تلاعب في البيانات',
+                    debug_info: process.env.NODE_ENV === 'development' ? {
+                        server_hmac: serverHMAC,
+                        client_hmac: clientHMAC
+                    } : undefined
+                });
             }
-
-            // Re-create the payload for debugging
-            const dataString = JSON.stringify(bodyToSign, Object.keys(bodyToSign).sort());
-            const payloadForDebug = `${timestamp}.${dataString}`;
-
-            return res.status(403).json({
-                success: false,
-                message: 'تم اكتشاف تلاعب في البيانات',
-                debug_info: process.env.NODE_ENV === 'development' ? {
-                    server_hmac: serverHMAC,
-                    client_hmac: clientHMAC,
-                    server_payload_to_sign: payloadForDebug,
-                } : undefined
-            });
         }
     } catch (err) {
         logger.error(`HMAC Error: ${err.message}`);
@@ -357,14 +339,17 @@ const wafMiddleware = (req, res, next) => {
     const method = (req.method || '').toUpperCase();
     const path = (req.path || '').toLowerCase();
 
-    // --- تعطيل الحماية تماماً بناءً على طلب المستخدم لضمان الرفع ---
-    // console.log(`[Security Debug] WAF bypassed for ${method} ${path}`);
-    return next();
-    
-    // --- تعطيل الحماية مؤقتاً لرفع الملفات ---
-
     // Skip for OPTIONS (CORS preflight)
     if (method === 'OPTIONS') return next();
+
+    // Allow bypass for file uploads (multipart/form-data) to avoid JSON stringify errors
+    const isFileUpload = req.headers['content-type'] && req.headers['content-type'].includes('multipart/form-data');
+    if (isFileUpload) return next();
+
+    // Emergency Bypass Mechanism (Use with caution!)
+    if (process.env.DISABLE_WAF === 'true') {
+        return next();
+    }
 
     // 1. User Agent Protection
     const userAgent = req.get ? req.get('User-Agent') : '';
@@ -401,7 +386,11 @@ const wafMiddleware = (req, res, next) => {
             inputToCheck.includes("' OR '1'='1") || 
             inputToCheck.includes('" OR "1"="1')) {
              logSecurityAudit(req, 'injection_attempt', 'critical');
-             return res.status(403).json({ message: 'Malicious payload detected' });
+             
+             // In strict mode, we block it. Otherwise, we just log it.
+             if (process.env.STRICT_SECURITY_MODE === 'true') {
+                return res.status(403).json({ message: 'Malicious payload detected' });
+             }
         }
     } catch (e) {
         // Skip check if stringify fails
@@ -415,6 +404,18 @@ const setupSecurity = (app) => {
     // Trust proxy if behind load balancer (Fly.io, Heroku, Nginx)
     app.set('trust proxy', 1);
 
+    // 0. Force HTTPS in production
+    app.use((req, res, next) => {
+        // Only redirect if explicitly on a production host and not local
+        const host = req.get('host') || '';
+        const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
+        
+        if (process.env.NODE_ENV === 'production' && !isLocal && !req.secure && req.get('x-forwarded-proto') !== 'https') {
+            return res.redirect('https://' + host + req.url);
+        }
+        next();
+    });
+
     // 1. CORS (CRITICAL: MUST BE FIRST to handle OPTIONS preflight)
     app.use(cors({
         origin: function (origin, callback) {
@@ -425,7 +426,8 @@ const setupSecurity = (app) => {
                 'http://localhost:3000',
                 'http://127.0.0.1:3000',
                 'https://tarekalsyed.github.io',
-                'https://tawal-academy.alwaysdata.net'
+                'https://tawal-academy.alwaysdata.net',
+                'https://tawal-academy-backend-v2.fly.dev'
             ];
             
             const normalizedOrigin = origin.replace(/\/$/, '').toLowerCase();
@@ -438,12 +440,10 @@ const setupSecurity = (app) => {
             });
             
             if (isAllowed || process.env.NODE_ENV !== 'production') {
-                // Return true to allow the origin dynamically
                 callback(null, true);
             } else {
                 console.warn(`[CORS Blocked] Origin: ${origin} not in allowed list.`);
-                // For safety during troubleshooting, let's allow but log
-                callback(null, true); 
+                callback(null, true); // Allow but log for now
             }
         },
         credentials: true,
@@ -482,7 +482,12 @@ const setupSecurity = (app) => {
         referrerPolicy: { policy: "same-origin" },
         xssFilter: true,
         noSniff: true,
-        hidePoweredBy: true
+        hidePoweredBy: true,
+        hsts: {
+            maxAge: 31536000,
+            includeSubDomains: true,
+            preload: true
+        }
     }));
 
     // 3. Rate Limiting & Protection

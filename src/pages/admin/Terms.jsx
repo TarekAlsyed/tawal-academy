@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 import { API_ENDPOINTS } from '../../config/api';
-import { FiPlus, FiEdit2, FiTrash2, FiLayers } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiLayers, FiEye, FiEyeOff } from 'react-icons/fi';
 import AdminLayout from '../../components/admin/AdminLayout';
 // import '../../styles/AdminPages.css'; // Commented out to use COMPLETE-ADMIN-DESIGN.css
 
@@ -11,7 +11,7 @@ const Terms = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingTerm, setEditingTerm] = useState(null);
-  const [formData, setFormData] = useState({ name: '' });
+  const [formData, setFormData] = useState({ name: '', is_published: true });
 
   useEffect(() => {
     fetchTerms();
@@ -39,28 +39,74 @@ const Terms = () => {
       return;
     }
 
+    const loadingToast = toast.loading('جاري حفظ البيانات...');
     try {
+      let response;
       if (editingTerm) {
-        await api.put(API_ENDPOINTS.ADMIN_TERM_BY_ID(editingTerm.id), formData);
-        toast.success('تم تحديث الترم بنجاح');
+        response = await api.put(API_ENDPOINTS.ADMIN_TERM_BY_ID(editingTerm.id), formData);
       } else {
-        await api.post(API_ENDPOINTS.ADMIN_TERMS, formData);
-        toast.success('تم إضافة الترم بنجاح');
+        response = await api.post(API_ENDPOINTS.ADMIN_TERMS, formData);
       }
       
-      setShowModal(false);
-      setFormData({ name: '' });
-      setEditingTerm(null);
-      fetchTerms();
+      if (response.data.success) {
+        toast.update(loadingToast, {
+          render: response.data.message || (editingTerm ? 'تم تحديث الترم بنجاح' : 'تم إضافة الترم بنجاح'),
+          type: 'success',
+          isLoading: false,
+          autoClose: 3000
+        });
+        setShowModal(false);
+        setFormData({ name: '', is_published: true });
+        setEditingTerm(null);
+        fetchTerms();
+      }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'حدث خطأ');
+      console.error('Submit error:', error);
+      toast.update(loadingToast, {
+        render: error.response?.data?.message || 'حدث خطأ أثناء حفظ البيانات',
+        type: 'error',
+        isLoading: false,
+        autoClose: 3000
+      });
     }
   };
 
   const handleEdit = (term) => {
     setEditingTerm(term);
-    setFormData({ name: term.name });
+    setFormData({ 
+      name: term.name,
+      is_published: term.is_published 
+    });
     setShowModal(true);
+  };
+
+  const toggleVisibility = async (term) => {
+    const loadingToast = toast.loading('جاري تحديث الحالة...');
+    try {
+      const newStatus = !term.is_published;
+      const response = await api.put(API_ENDPOINTS.ADMIN_TERM_BY_ID(term.id), { 
+        name: term.name,
+        is_published: newStatus 
+      });
+      
+      if (response.data.success) {
+        toast.update(loadingToast, {
+          render: response.data.message || (newStatus ? 'تم إظهار الترم للطلاب بنجاح' : 'تم إخفاء الترم عن الطلاب بنجاح'),
+          type: 'success',
+          isLoading: false,
+          autoClose: 3000
+        });
+        fetchTerms();
+      }
+    } catch (error) {
+      console.error('Toggle visibility error:', error);
+      toast.update(loadingToast, {
+        render: error.response?.data?.message || 'فشل تغيير حالة الظهور',
+        type: 'error',
+        isLoading: false,
+        autoClose: 3000
+      });
+    }
   };
 
   const handleDelete = async (id) => {
@@ -77,7 +123,7 @@ const Terms = () => {
 
   const openAddModal = () => {
     setEditingTerm(null);
-    setFormData({ name: '' });
+    setFormData({ name: '', is_published: true });
     setShowModal(true);
   };
 
@@ -111,6 +157,7 @@ const Terms = () => {
                 <tr>
                   <th>الرقم</th>
                   <th>اسم الترم</th>
+                  <th>الحالة</th>
                   <th>عدد المواد</th>
                   <th>تاريخ الإنشاء</th>
                   <th>الإجراءات</th>
@@ -129,6 +176,21 @@ const Terms = () => {
                       </td>
                       <td>
                         <span style={{ 
+                          background: term.is_published ? 'var(--admin-success-light)' : 'var(--admin-danger-light)', 
+                          padding: '0.25rem 0.75rem', 
+                          borderRadius: '15px', 
+                          fontSize: '0.8rem',
+                          color: term.is_published ? 'var(--admin-success)' : 'var(--admin-danger)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.4rem'
+                        }}>
+                          {term.is_published ? <FiEye size={14} /> : <FiEyeOff size={14} />}
+                          {term.is_published ? 'منشور' : 'مخفي'}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{ 
                           background: 'var(--admin-primary-light)', 
                           padding: '0.25rem 0.75rem', 
                           borderRadius: '15px', 
@@ -141,6 +203,24 @@ const Terms = () => {
                       <td>{new Date(term.created_at).toLocaleDateString('ar-EG')}</td>
                       <td>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button 
+                            className="admin-btn" 
+                            onClick={(e) => { 
+                              e.preventDefault();
+                              e.stopPropagation(); 
+                              toggleVisibility(term); 
+                            }}
+                            style={{ 
+                              padding: '0.4rem', 
+                              fontSize: '0.9rem',
+                              background: term.is_published ? 'var(--admin-gold-light)' : 'var(--admin-success-light)',
+                              color: term.is_published ? 'var(--admin-gold)' : 'var(--admin-success)',
+                              cursor: 'pointer'
+                            }}
+                            title={term.is_published ? 'إخفاء عن الطلاب' : 'إظهار للطلاب'}
+                          >
+                            {term.is_published ? <FiEye /> : <FiEyeOff />}
+                          </button>
                           <button 
                             className="admin-btn" 
                             onClick={() => handleEdit(term)}
@@ -163,7 +243,7 @@ const Terms = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: 'var(--admin-text-muted)' }}>
+                    <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'var(--admin-text-muted)' }}>
                       لا توجد ترمات حالياً
                     </td>
                   </tr>
@@ -187,11 +267,42 @@ const Terms = () => {
                   type="text"
                   className="admin-input"
                   value={formData.name}
-                  onChange={(e) => setFormData({ name: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="مثال: الترم الأول"
                   required
                   style={{ width: '100%' }}
                 />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--admin-bg-primary)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--admin-border)' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.2rem' }}>حالة الظهور للطلاب</label>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--admin-text-muted)' }}>
+                    {formData.is_published ? 'سيظهر الترم ومواده للطلاب' : 'سيتم إخفاء الترم ومواده عن الطلاب'}
+                  </p>
+                </div>
+                <div 
+                  onClick={() => setFormData({ ...formData, is_published: !formData.is_published })}
+                  style={{ 
+                    width: '50px', 
+                    height: '26px', 
+                    background: formData.is_published ? 'var(--admin-success)' : '#ccc', 
+                    borderRadius: '13px', 
+                    position: 'relative', 
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  <div style={{ 
+                    width: '20px', 
+                    height: '20px', 
+                    background: 'white', 
+                    borderRadius: '50%', 
+                    position: 'absolute', 
+                    top: '3px', 
+                    left: formData.is_published ? '27px' : '3px',
+                    transition: 'all 0.3s ease'
+                  }} />
+                </div>
               </div>
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <button type="submit" className="admin-btn admin-btn-primary" style={{ flex: 1, justifyContent: 'center' }}>

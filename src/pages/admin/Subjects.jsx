@@ -29,6 +29,22 @@ const Subjects = () => {
     }
   };
 
+  // تجميع المواد حسب الترم
+  const groupSubjectsByTerm = () => {
+    const groups = {};
+    subjects.forEach(subject => {
+      const termName = subject.term_name || 'غير مصنف';
+      if (!groups[termName]) {
+        groups[termName] = [];
+      }
+      groups[termName].push(subject);
+    });
+    return groups;
+  };
+
+  const groupedSubjects = groupSubjectsByTerm();
+  const termNames = Object.keys(groupedSubjects).sort();
+
   const handleDelete = async (id) => {
     if (!window.confirm('هل أنت متأكد من حذف هذه المادة؟ سيتم حذف جميع الملفات والامتحانات المرتبطة بها.')) return;
 
@@ -69,87 +85,117 @@ const Subjects = () => {
       </header>
 
       <div className="admin-content">
-        {subjects.length > 0 ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
-            {subjects.map((subject) => (
-              <div key={subject.id} className="admin-card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', marginBottom: 0 }}>
-                <div style={{ position: 'relative', height: '180px', overflow: 'hidden' }}>
-                  {subject.cover_image ? (
-                    <img 
-                      src={getFileUrl(subject.cover_image)} 
-                      alt={subject.name} 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.3s' }}
-                      onMouseOver={(e) => e.target.style.transform = 'scale(1.1)'}
-                      onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
-                    />
-                  ) : (
-                    <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <FiBook size={48} color="white" style={{ opacity: 0.5 }} />
-                    </div>
-                  )}
-                  <div style={{ 
-                    position: 'absolute', 
-                    bottom: 0, 
-                    left: 0, 
-                    right: 0, 
-                    padding: '1rem', 
-                    background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' 
+        {termNames.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+            {termNames.map((termName) => (
+              <section key={termName}>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '1rem', 
+                  marginBottom: '1.5rem',
+                  padding: '0.5rem 1rem',
+                  background: 'var(--admin-bg-primary)',
+                  borderRadius: '12px',
+                  borderRight: '4px solid var(--admin-primary)'
+                }}>
+                  <FiBook size={20} color="var(--admin-primary)" />
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold' }}>{termName}</h2>
+                  <span style={{ 
+                    marginLeft: 'auto', 
+                    background: 'var(--admin-primary-light)', 
+                    color: 'var(--admin-primary)', 
+                    padding: '0.25rem 0.75rem', 
+                    borderRadius: '20px', 
+                    fontSize: '0.75rem', 
+                    fontWeight: 'bold' 
                   }}>
-                    <h3 style={{ margin: 0, color: 'white', fontSize: '1.25rem' }}>{subject.name}</h3>
-                    <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.875rem' }}>{subject.term_name}</span>
-                  </div>
+                    {groupedSubjects[termName].length} مواد
+                  </span>
                 </div>
 
-                <div style={{ padding: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                  {subject.description && (
-                    <p style={{ color: 'var(--admin-text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem', flex: 1 }}>
-                      {subject.description.length > 100 ? subject.description.substring(0, 100) + '...' : subject.description}
-                    </p>
-                  )}
-                  
-                  <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-muted)', fontSize: '0.875rem' }}>
-                      <FiFileText color="var(--admin-primary)" />
-                      <span>{subject.pdfs_count || 0}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-muted)', fontSize: '0.875rem' }}>
-                      <FiImage color="var(--admin-gold)" />
-                      <span>{subject.images_count || 0}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-muted)', fontSize: '0.875rem' }}>
-                      <FiBook color="var(--admin-success)" />
-                      <span>{subject.exams_count || 0}</span>
-                    </div>
-                  </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
+                  {groupedSubjects[termName].map((subject) => (
+                    <div key={subject.id} className="admin-card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', marginBottom: 0 }}>
+                      <div style={{ position: 'relative', height: '180px', overflow: 'hidden' }}>
+                        {subject.cover_image ? (
+                          <img 
+                            src={getFileUrl(subject.cover_image)} 
+                            alt={subject.name} 
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.3s' }}
+                            onMouseOver={(e) => e.target.style.transform = 'scale(1.1)'}
+                            onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
+                          />
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <FiBook size={48} color="white" style={{ opacity: 0.5 }} />
+                          </div>
+                        )}
+                        <div style={{ 
+                          position: 'absolute', 
+                          bottom: 0, 
+                          left: 0, 
+                          right: 0, 
+                          padding: '1rem', 
+                          background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' 
+                        }}>
+                          <h3 style={{ margin: 0, color: 'white', fontSize: '1.25rem' }}>{subject.name}</h3>
+                        </div>
+                      </div>
 
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button 
-                      className="admin-btn" 
-                      onClick={() => navigate(`/admin/subjects/${subject.id}`)}
-                      title="عرض التفاصيل"
-                      style={{ flex: 1, justifyContent: 'center', background: 'var(--admin-primary-light)', color: 'var(--admin-primary)', fontSize: '0.875rem', padding: '0.5rem' }}
-                    >
-                      <FiEye /> عرض
-                    </button>
-                    <button 
-                      className="admin-btn" 
-                      onClick={() => navigate(`/admin/subjects/edit/${subject.id}`)} 
-                      title="تعديل"
-                      style={{ flex: 1, justifyContent: 'center', background: 'var(--admin-gold-light)', color: 'var(--admin-gold)', fontSize: '0.875rem', padding: '0.5rem' }}
-                    >
-                      <FiEdit2 /> تعديل
-                    </button>
-                    <button 
-                      className="admin-btn" 
-                      onClick={() => handleDelete(subject.id)}
-                      title="حذف"
-                      style={{ flex: 1, justifyContent: 'center', background: 'var(--admin-danger-light)', color: 'var(--admin-danger)', fontSize: '0.875rem', padding: '0.5rem' }}
-                    >
-                      <FiTrash2 /> حذف
-                    </button>
-                  </div>
+                      <div style={{ padding: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        {subject.description && (
+                          <p style={{ color: 'var(--admin-text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem', flex: 1 }}>
+                            {subject.description.length > 100 ? subject.description.substring(0, 100) + '...' : subject.description}
+                          </p>
+                        )}
+                        
+                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-muted)', fontSize: '0.875rem' }}>
+                            <FiFileText color="var(--admin-primary)" />
+                            <span>{subject.pdfs_count || 0}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-muted)', fontSize: '0.875rem' }}>
+                            <FiImage color="var(--admin-gold)" />
+                            <span>{subject.images_count || 0}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--admin-text-muted)', fontSize: '0.875rem' }}>
+                            <FiBook color="var(--admin-success)" />
+                            <span>{subject.exams_count || 0}</span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button 
+                            className="admin-btn" 
+                            onClick={() => navigate(`/admin/subjects/${subject.id}`)}
+                            title="عرض التفاصيل"
+                            style={{ flex: 1, justifyContent: 'center', background: 'var(--admin-primary-light)', color: 'var(--admin-primary)', fontSize: '0.875rem', padding: '0.5rem' }}
+                          >
+                            <FiEye /> عرض
+                          </button>
+                          <button 
+                            className="admin-btn" 
+                            onClick={() => navigate(`/admin/subjects/edit/${subject.id}`)} 
+                            title="تعديل"
+                            style={{ flex: 1, justifyContent: 'center', background: 'var(--admin-gold-light)', color: 'var(--admin-gold)', fontSize: '0.875rem', padding: '0.5rem' }}
+                          >
+                            <FiEdit2 /> تعديل
+                          </button>
+                          <button 
+                            className="admin-btn" 
+                            onClick={() => handleDelete(subject.id)}
+                            title="حذف"
+                            style={{ flex: 1, justifyContent: 'center', background: 'var(--admin-danger-light)', color: 'var(--admin-danger)', fontSize: '0.875rem', padding: '0.5rem' }}
+                          >
+                            <FiTrash2 /> حذف
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              </section>
             ))}
           </div>
         ) : (

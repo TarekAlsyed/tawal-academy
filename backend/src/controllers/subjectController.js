@@ -108,6 +108,10 @@ exports.getTerms = async (req, res, next) => {
         SELECT 1 FROM information_schema.columns 
         WHERE table_name = 'terms' AND column_name = 'is_deleted'
       ))
+      AND (t.is_published = TRUE OR NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'terms' AND column_name = 'is_published'
+      ))
       ORDER BY created_at ASC
     `);
     res.json({
@@ -132,6 +136,14 @@ exports.getSubjectById = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: 'المادة غير موجودة'
+      });
+    }
+
+    // التحقق من أن الترم منشور للطلاب
+    if (subject.term_published === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'هذا الترم غير متاح حالياً'
       });
     }
 

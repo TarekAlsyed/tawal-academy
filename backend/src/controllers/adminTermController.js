@@ -59,21 +59,10 @@ exports.deleteTerm = async (req, res, next) => {
 };
 
 exports.updateTerm = async (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
   try {
     const { id } = req.params;
-    const { name } = req.body;
+    const { name, is_published } = req.body;
     const admin = req.admin;
-
-    if (!name) {
-      return res.status(400).json({
-        success: false,
-        message: 'اسم الترم مطلوب'
-      });
-    }
 
     // Check permissions
     let permissions = {};
@@ -82,6 +71,10 @@ exports.updateTerm = async (req, res, next) => {
         ? JSON.parse(admin.permissions_detailed)
         : admin.permissions_detailed || {};
     } catch (e) {}
+
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (is_published !== undefined) updates.is_published = is_published;
 
     if (!admin.is_super_admin && permissions.subjects?.requireApproval) {
       const PendingApproval = require('../models/PendingApproval');
@@ -92,21 +85,20 @@ exports.updateTerm = async (req, res, next) => {
         { 
           method: 'PUT',
           url: `/api/admin/terms/${id}`,
-          body: { name }
+          body: updates
         }
       );
 
       return res.json({
         success: true,
-        message: 'تم إرسال طلب تحديث الترم للمدير العام للموافقة',
-        requiresApproval: true
+        message: 'تم إرسال طلب التعديل للمراجعة'
       });
     }
 
-    const term = await Term.update(id, { name });
+    const term = await Term.update(id, updates);
 
     // تسجيل النشاط
-    await Admin.logActivity(req.admin.id, 'update_term', { termId: id, name }, req.ip);
+    await Admin.logActivity(req.admin.id, 'update_term', { termId: id, ...updates }, req.ip);
 
     res.json({
       success: true,

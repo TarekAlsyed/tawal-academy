@@ -82,7 +82,8 @@ class Subject {
     `;
 
     if (!includeScheduled) {
-      query += ` WHERE (s.scheduled_at IS NULL OR s.scheduled_at <= CURRENT_TIMESTAMP)
+      query += ` WHERE (t.is_published = TRUE OR t.is_published IS NULL)
+                 AND (s.scheduled_at IS NULL OR s.scheduled_at <= CURRENT_TIMESTAMP)
                  AND s.status = 'open'`;
     }
 
@@ -113,7 +114,7 @@ class Subject {
     try {
       // المادة الأساسية
       const subjectResult = await client.query(
-        `SELECT s.*, t.name as term_name,
+        `SELECT s.*, t.name as term_name, t.is_published as term_published,
                 (SELECT COALESCE(AVG(rating), 0) FROM ratings WHERE subject_id = s.id) as avg_rating,
                 (SELECT COUNT(*) FROM ratings WHERE subject_id = s.id) as ratings_count
          FROM subjects s
@@ -575,7 +576,9 @@ class Subject {
               (SELECT COALESCE(AVG(rating), 0) FROM ratings WHERE subject_id = s.id) as avg_rating,
               (SELECT COUNT(*) FROM ratings WHERE subject_id = s.id) as ratings_count
        FROM subjects s
+       JOIN terms t ON s.term_id = t.id
        WHERE s.term_id = $1
+       AND (t.is_published = TRUE OR t.is_published IS NULL)
        AND (s.scheduled_at IS NULL OR s.scheduled_at <= CURRENT_TIMESTAMP)
        AND s.status = 'open'
        ORDER BY s.created_at DESC`,

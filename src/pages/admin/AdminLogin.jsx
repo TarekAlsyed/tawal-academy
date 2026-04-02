@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
-import { FiMail, FiShield, FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiMail, FiShield, FiLock, FiEye, FiEyeOff, FiCopy, FiClipboard } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 // import '../../styles/Login.css'; // Commented out to use global COMPLETE-ADMIN-DESIGN.css
 
@@ -9,10 +10,34 @@ const AdminLogin = () => {
   const [loading, setLoading] = useState(false);
   const [mfaRequired, setMfaRequired] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [adminData, setAdminData] = useState(null);
+  
+  const navigate = useNavigate();
   const { adminLogin } = useAuth();
+
+  const handleCopy = (text, label) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    toast.success(`تم نسخ ${label} بنجاح`, { position: 'bottom-center' });
+  };
+
+  const handlePaste = async (fieldName) => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setFormData(prev => ({ ...prev, [fieldName]: text }));
+        toast.success(`تم اللصق في ${fieldName === 'email' ? 'البريد' : 'كلمة المرور'}`, { position: 'bottom-center' });
+      }
+    } catch (err) {
+      toast.error('لا يمكن الوصول للحافظة. يرجى السماح بالصلاحية أو استخدام Ctrl+V');
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    setError('');
   };
 
   const handleSubmit = async (e) => {
@@ -95,7 +120,17 @@ const AdminLogin = () => {
           {!mfaRequired ? (
             <>
               <div className="admin-form-group">
-                <label className="admin-label">البريد الإلكتروني</label>
+                <label className="admin-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>البريد الإلكتروني</span>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button type="button" onClick={() => handlePaste('email')} title="لصق" style={{ background: 'none', border: 'none', color: 'var(--admin-primary)', cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <FiClipboard size={12} /> لصق
+                    </button>
+                    <button type="button" onClick={() => handleCopy(formData.email, 'البريد')} title="نسخ" style={{ background: 'none', border: 'none', color: 'var(--admin-text-light)', cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <FiCopy size={12} /> نسخ
+                    </button>
+                  </div>
+                </label>
                 <div style={{ position: 'relative' }}>
                   <FiMail style={{ 
                     position: 'absolute', 
@@ -118,7 +153,17 @@ const AdminLogin = () => {
               </div>
 
               <div className="admin-form-group">
-                <label className="admin-label">كلمة المرور</label>
+                <label className="admin-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>كلمة المرور</span>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button type="button" onClick={() => handlePaste('password')} title="لصق" style={{ background: 'none', border: 'none', color: 'var(--admin-primary)', cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <FiClipboard size={12} /> لصق
+                    </button>
+                    <button type="button" onClick={() => handleCopy(formData.password, 'كلمة المرور')} title="نسخ" style={{ background: 'none', border: 'none', color: 'var(--admin-text-light)', cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      <FiCopy size={12} /> نسخ
+                    </button>
+                  </div>
+                </label>
                 <div style={{ position: 'relative' }}>
                   <FiLock style={{ 
                     position: 'absolute', 
@@ -161,7 +206,12 @@ const AdminLogin = () => {
             </>
           ) : (
             <div className="admin-form-group">
-              <label className="admin-label">رمز التحقق (6 أرقام)</label>
+              <label className="admin-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>رمز التحقق (6 أرقام)</span>
+                <button type="button" onClick={() => handlePaste('mfaCode')} title="لصق" style={{ background: 'none', border: 'none', color: 'var(--admin-primary)', cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                  <FiClipboard size={12} /> لصق الرمز
+                </button>
+              </label>
               <div style={{ position: 'relative' }}>
                 <FiLock style={{ 
                   position: 'absolute', 

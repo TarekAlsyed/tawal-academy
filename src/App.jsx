@@ -96,6 +96,10 @@ function AppContent() {
   }, [location]);
 
   useEffect(() => {
+    // استثناء صفحة دخول المسؤول من القيود لتسهيل العمل
+    const isAdminPath = location.pathname.includes('/admin/login');
+    if (isAdminPath) return;
+
     // منع القائمة اليمنى (Right Click)
     const handleContextMenu = (e) => {
       e.preventDefault();
@@ -126,7 +130,7 @@ function AppContent() {
       document.removeEventListener('copy', handleCopy);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [location.pathname]);
 
   return (
     <>

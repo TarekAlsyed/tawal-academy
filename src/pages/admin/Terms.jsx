@@ -8,7 +8,7 @@ import AdminLayout from '../../components/admin/AdminLayout';
 
 const Terms = () => {
   const [terms, setTerms] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingTerm, setEditingTerm] = useState(null);
   const [formData, setFormData] = useState({ name: '', is_published: true });
@@ -17,9 +17,11 @@ const Terms = () => {
     fetchTerms();
   }, []);
 
-  const fetchTerms = async () => {
+  const fetchTerms = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
+      else setRefreshing(true);
+
       const response = await api.get(API_ENDPOINTS.ADMIN_TERMS);
       if (response.data.success) {
         setTerms(response.data.data.terms);
@@ -28,6 +30,7 @@ const Terms = () => {
       toast.error('فشل تحميل الترمات');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -58,7 +61,14 @@ const Terms = () => {
         setShowModal(false);
         setFormData({ name: '', is_published: true });
         setEditingTerm(null);
-        fetchTerms();
+        fetchTerms(true);
+      } else {
+        toast.update(loadingToast, {
+          render: response.data.message || 'فشل حفظ البيانات',
+          type: 'error',
+          isLoading: false,
+          autoClose: 3000
+        });
       }
     } catch (error) {
       console.error('Submit error:', error);
@@ -96,7 +106,14 @@ const Terms = () => {
           isLoading: false,
           autoClose: 3000
         });
-        fetchTerms();
+        fetchTerms(true);
+      } else {
+        toast.update(loadingToast, {
+          render: response.data.message || 'فشل تحديث الحالة',
+          type: 'error',
+          isLoading: false,
+          autoClose: 3000
+        });
       }
     } catch (error) {
       console.error('Toggle visibility error:', error);
@@ -112,12 +129,32 @@ const Terms = () => {
   const handleDelete = async (id) => {
     if (!window.confirm('هل أنت متأكد من حذف هذا الترم؟')) return;
 
+    const loadingToast = toast.loading('جاري حذف الترم...');
     try {
-      await api.delete(API_ENDPOINTS.ADMIN_TERM_BY_ID(id));
-      toast.success('تم حذف الترم بنجاح');
-      fetchTerms();
+      const response = await api.delete(API_ENDPOINTS.ADMIN_TERM_BY_ID(id));
+      if (response.data.success) {
+        toast.update(loadingToast, {
+          render: response.data.message || 'تم حذف الترم بنجاح',
+          type: 'success',
+          isLoading: false,
+          autoClose: 3000
+        });
+        fetchTerms(true);
+      } else {
+        toast.update(loadingToast, {
+          render: response.data.message || 'فشل حذف الترم',
+          type: 'error',
+          isLoading: false,
+          autoClose: 3000
+        });
+      }
     } catch (error) {
-      toast.error('فشل حذف الترم');
+      toast.update(loadingToast, {
+        render: error.response?.data?.message || 'فشل حذف الترم',
+        type: 'error',
+        isLoading: false,
+        autoClose: 3000
+      });
     }
   };
 
@@ -219,7 +256,7 @@ const Terms = () => {
                             }}
                             title={term.is_published ? 'إخفاء عن الطلاب' : 'إظهار للطلاب'}
                           >
-                            {term.is_published ? <FiEye /> : <FiEyeOff />}
+                            {term.is_published ? <FiEyeOff /> : <FiEye />}
                           </button>
                           <button 
                             className="admin-btn" 

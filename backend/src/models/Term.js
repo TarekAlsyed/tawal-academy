@@ -1,10 +1,10 @@
 const pool = require('../config/database');
 
 class Term {
-  static async create(name) {
+  static async create(name, isPublished = true) {
     const result = await pool.query(
       `INSERT INTO terms (name, is_published) VALUES ($1, $2) RETURNING *`,
-      [name, true]
+      [name, isPublished]
     );
     return result.rows[0];
   }

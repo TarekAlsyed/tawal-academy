@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { adminAuth, checkPermission } = require('../middlewares/adminAuth');
 const { uploadAudio, upload: localUpload } = require('../middlewares/upload'); // Only keep what is needed from here
-const { adminLoginValidation, subjectValidation, examValidation, updateExamValidation, questionBankValidation, updateQuestionBankValidation, updateAdminValidation, termValidation, updateTermValidation } = require('../middlewares/validator');
+const { adminLoginValidation, subjectValidation, examValidation, updateExamValidation, questionBankValidation, updateQuestionBankValidation, updateAdminValidation, termValidation, updateTermValidation, validate } = require('../middlewares/validator');
 
 // Controllers
 const adminAuthController = require('../controllers/adminAuthController');
@@ -77,8 +77,8 @@ router.put('/admins/:id/toggle-super', adminAuth, checkPermission('admins', 'edi
 // Terms Routes
 // ============================================
 router.get('/terms', adminAuth, adminTermController.getAllTerms);
-router.post('/terms', adminAuth, checkPermission('subjects', 'add'), termValidation, adminTermController.createTerm);
-router.put('/terms/:id', adminAuth, checkPermission('subjects', 'edit'), updateTermValidation, adminTermController.updateTerm);
+router.post('/terms', adminAuth, checkPermission('subjects', 'add'), termValidation, validate, adminTermController.createTerm);
+router.put('/terms/:id', adminAuth, checkPermission('subjects', 'edit'), updateTermValidation, validate, adminTermController.updateTerm);
 router.delete('/terms/:id', adminAuth, checkPermission('subjects', 'delete'), adminTermController.deleteTerm);
 
 // ============================================

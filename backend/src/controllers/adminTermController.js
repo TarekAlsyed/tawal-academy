@@ -15,7 +15,7 @@ exports.getAllTerms = async (req, res, next) => {
 
 exports.createTerm = async (req, res, next) => {
   try {
-    const { name } = req.body;
+    const { name, is_published } = req.body;
     const admin = req.admin;
     
     if (!name) {
@@ -25,10 +25,37 @@ exports.createTerm = async (req, res, next) => {
       });
     }
 
-    const term = await Term.create(name);
+    // Check permissions
+    let permissions = {};
+    try {
+      permissions = typeof admin.permissions_detailed === 'string'
+        ? JSON.parse(admin.permissions_detailed)
+        : admin.permissions_detailed || {};
+    } catch (e) {}
+
+    if (!admin.is_super_admin && permissions.subjects?.requireApproval) {
+      const PendingApproval = require('../models/PendingApproval');
+      await PendingApproval.create(
+        admin.id,
+        'create_term',
+        'term',
+        { 
+          method: 'POST',
+          url: '/api/admin/terms',
+          body: { name, is_published: is_published !== undefined ? is_published : true }
+        }
+      );
+
+      return res.json({
+        success: true,
+        message: 'تم إرسال طلب الإضافة للمراجعة'
+      });
+    }
+
+    const term = await Term.create(name, is_published !== undefined ? is_published : true);
     
     // تسجيل النشاط
-    await Admin.logActivity(req.admin.id, 'create_term', { name }, req.ip);
+    await Admin.logActivity(req.admin.id, 'create_term', { name, is_published }, req.ip);
 
     res.json({
       success: true,

@@ -6,17 +6,18 @@ class ActivityLog {
       throw new Error('Either adminId or userId must be provided');
     }
 
-    const client = await pool.connect();
     try {
-      const result = await client.query(
+      const result = await pool.query(
         `INSERT INTO activity_log (admin_id, user_id, action, details, ip_address)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING *`,
         [adminId || null, userId || null, action, JSON.stringify(details), ipAddress]
       );
       return result.rows[0];
-    } finally {
-      client.release();
+    } catch (error) {
+      console.error('Error logging activity:', error);
+      // Don't throw error to avoid blocking the main operation if logging fails
+      return null;
     }
   }
 

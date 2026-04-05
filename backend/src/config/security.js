@@ -62,6 +62,7 @@ const verifyRequestIntegrity = async (req, res, next) => {
     // Admin routes are already protected by JWT and don't need this HMAC layer
     // This solves the "بيانات الحماية مفقودة" issue definitively.
     if (path.includes('/api/admin/') || 
+        path.includes('/monitoring/') ||
         req.get('Referer')?.includes('/admin') || 
         req.get('Origin')?.includes('github.io')) {
         return next();

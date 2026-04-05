@@ -11,16 +11,34 @@ class ImageStorageService {
      * @param {String} folder - Cloudinary folder name
      * @returns {Object} The saved image data
      */
-    static async uploadAndSavePermanently(file, folder = 'tawal_academy_permanent') {
+    static async uploadAndSavePermanently(file, folder = 'tawal_academy_permanent', applyWatermark = true) {
         try {
-            // 1. Upload to Cloudinary with optimization
-            // 'f_auto,q_auto' ensures the best format (webp/avif) and quality automatically
+            // 1. Upload to Cloudinary with optimization and optional watermark
+            const transformation = [
+                { width: 1200, crop: "limit" }, // Resize if too large
+                { quality: "auto", fetch_format: "auto" } // Best performance
+            ];
+
+            if (applyWatermark) {
+                // Diagonal Text Watermark: "Tawal Academy"
+                // l_text: font_size:text, g_center, o_opacity, a_angle
+                transformation.push({
+                    overlay: {
+                        font_family: "Arial",
+                        font_size: 40,
+                        font_weight: "bold",
+                        text: "Tawal Academy | 🔒🛡️"
+                    },
+                    gravity: "center",
+                    opacity: 20,
+                    angle: -30,
+                    color: "black"
+                });
+            }
+
             const uploadResult = await cloudinary.uploader.upload(file.path || file, {
                 folder: folder,
-                transformation: [
-                    { width: 1200, crop: "limit" }, // Resize if too large
-                    { quality: "auto", fetch_format: "auto" } // Best performance
-                ]
+                transformation: transformation
             });
 
             // 2. Prepare local backup if needed

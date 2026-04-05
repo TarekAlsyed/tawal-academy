@@ -53,8 +53,8 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ 
     status: 'ok', 
     service: 'tawal-academy-backend', 
-    version: '2026-04-01-v5-final-fix',
-    build_time: '2026-04-01 20:30:45'
+    version: '2026-04-05-v15-student-exam-visibility-fix',
+    build_time: '2026-04-05 18:00:00'
   });
 });
 

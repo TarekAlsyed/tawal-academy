@@ -52,23 +52,58 @@ class Admin {
   }
 
   // تسجيل دخول المشرف
-  static async login(email, password) {
+  static async login(email, password, ipAddress = null) {
     const result = await pool.query(
       'SELECT * FROM admins WHERE email = $1',
       [email]
     );
 
     if (result.rows.length === 0) {
+      // Record failed attempt for IP if possible (to prevent general brute force)
       throw new Error('الإيميل أو كلمة المرور غير صحيحة');
     }
 
     const admin = result.rows[0];
 
-    // التحقق من كلمة المرور
+    // 1. التحقق من حالة الحظر
+    if (admin.is_blocked || (admin.blocked_until && new Date(admin.blocked_until) > new Date())) {
+      const remainingTime = admin.blocked_until ? Math.ceil((new Date(admin.blocked_until) - new Date()) / 60000) : null;
+      throw new Error(`هذا الحساب محظور أمنياً بسبب محاولات دخول فاشلة متكررة. ${remainingTime ? `يرجى المحاولة بعد ${remainingTime} دقيقة.` : 'يرجى التواصل مع المدير العام.'}`);
+    }
+
+    // 2. التحقق من كلمة المرور
     const isPasswordValid = await bcrypt.compare(password, admin.password);
 
     if (!isPasswordValid) {
+      // 3. تحديث محاولات الدخول الفاشلة
+      const newFailedAttempts = (admin.failed_attempts || 0) + 1;
+      let updateQuery = 'UPDATE admins SET failed_attempts = $1, last_failed_attempt = CURRENT_TIMESTAMP WHERE id = $2';
+      let params = [newFailedAttempts, admin.id];
+
+      // حظر تلقائي بعد 5 محاولات فاشلة
+      if (newFailedAttempts >= 5) {
+        const blockedUntil = new Date(Date.now() + 30 * 60000); // 30 mins ban
+        updateQuery = 'UPDATE admins SET failed_attempts = $1, last_failed_attempt = CURRENT_TIMESTAMP, blocked_until = $2 WHERE id = $3';
+        params = [newFailedAttempts, blockedUntil, admin.id];
+        
+        // سجل واقعة أمنية في السجلات
+        await pool.query(
+          `INSERT INTO activity_log (admin_id, action_type, details, ip_address)
+           VALUES ($1, $2, $3, $4)`,
+          [admin.id, 'SECURITY_BAN', JSON.stringify({ reason: 'Multiple failed login attempts', attempts: newFailedAttempts }), ipAddress]
+        );
+      }
+
+      await pool.query(updateQuery, params);
       throw new Error('الإيميل أو كلمة المرور غير صحيحة');
+    }
+
+    // 4. إعادة تعيين محاولات الدخول الفاشلة عند النجاح
+    if (admin.failed_attempts > 0) {
+      await pool.query(
+        'UPDATE admins SET failed_attempts = 0, last_failed_attempt = NULL, blocked_until = NULL WHERE id = $1',
+        [admin.id]
+      );
     }
 
     // فك تشفير MFA Secret إذا وجد

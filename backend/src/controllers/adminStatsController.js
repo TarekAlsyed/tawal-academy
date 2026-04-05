@@ -7,10 +7,13 @@ exports.getDashboardStats = async (req, res, next) => {
     const studentsCount = await pool.query('SELECT COUNT(*) as count FROM users');
     
     // Total subjects
-    const subjectsCount = await pool.query('SELECT COUNT(*) as count FROM subjects');
+    const subjectsCount = await pool.query('SELECT COUNT(*) as count FROM subjects WHERE is_deleted = FALSE');
     
-    // Total exams
-    const examsCount = await pool.query('SELECT COUNT(*) as count FROM exams');
+    // Total exams - Ensuring we only count active exams with valid subjects
+    const examsCount = await pool.query(
+      `SELECT COUNT(*) as count FROM exams 
+       WHERE is_deleted = FALSE`
+    );
     
     // Total exam attempts
     const attemptsCount = await pool.query('SELECT COUNT(*) as count FROM exam_attempts');

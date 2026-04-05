@@ -70,11 +70,15 @@ class Subject {
 
   // الحصول على جميع المواد
   static async findAll(includeScheduled = false) {
+    const examsCountSubquery = includeScheduled
+      ? '(SELECT COUNT(*) FROM exams WHERE subject_id = s.id AND is_deleted = FALSE) as exams_count'
+      : "(SELECT COUNT(*) FROM exams WHERE subject_id = s.id AND (is_published = TRUE OR status = 'open') AND is_deleted = FALSE) as exams_count";
+
     let query = `
       SELECT s.*, t.name as term_name,
              (SELECT COUNT(*) FROM pdfs WHERE subject_id = s.id) as pdfs_count,
              (SELECT COUNT(*) FROM images WHERE subject_id = s.id) as images_count,
-             (SELECT COUNT(*) FROM exams WHERE subject_id = s.id AND is_published = TRUE) as exams_count,
+             ${examsCountSubquery},
              (SELECT COALESCE(AVG(rating), 0) FROM ratings WHERE subject_id = s.id) as avg_rating,
              (SELECT COUNT(*) FROM ratings WHERE subject_id = s.id) as ratings_count
       FROM subjects s
@@ -144,9 +148,9 @@ class Subject {
       // الامتحانات - تعديل لجعل الأدمن يرى كل الامتحانات (حتى غير المنشورة)
       const isAdmin = !!userId && (await client.query('SELECT id FROM admins WHERE id = $1', [userId])).rows.length > 0;
       
-      let examsQuery = 'SELECT e.*, (SELECT COUNT(*) FROM questions WHERE exam_id = e.id) as questions_count FROM exams e WHERE e.subject_id = $1';
+      let examsQuery = 'SELECT e.*, (SELECT COUNT(*) FROM questions WHERE exam_id = e.id) as questions_count FROM exams e WHERE e.subject_id = $1 AND e.is_deleted = FALSE';
       if (!isAdmin) {
-        examsQuery += ' AND e.is_published = TRUE';
+        examsQuery += " AND (e.is_published = TRUE OR e.status = 'open')";
       }
       examsQuery += ' ORDER BY e.level ASC';
 

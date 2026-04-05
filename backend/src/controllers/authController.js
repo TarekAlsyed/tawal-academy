@@ -4,7 +4,9 @@ const User = require('../models/User');
 exports.login = async (req, res, next) => {
   try {
     const { name, email } = req.body;
-    const deviceId = req.deviceId || req.body.deviceId || req.headers['x-device-id'] || `device-${Date.now()}`;
+    const deviceId = req.deviceId || req.body.deviceId || req.headers['x-device-id'];
+    const fingerprint = req.fingerprint || req.headers['x-fingerprint'];
+    const userAgent = req.get('User-Agent');
 
     if (!name || !email) {
       return res.status(400).json({
@@ -13,7 +15,7 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    const user = await User.findOrCreate(name, email, deviceId);
+    const user = await User.findOrCreate(name, email, deviceId, fingerprint, req.ip, userAgent);
 
     if (!process.env.JWT_SECRET) {
       console.error('❌ JWT_SECRET is not defined in environment variables');

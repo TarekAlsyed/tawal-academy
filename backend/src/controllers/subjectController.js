@@ -104,14 +104,7 @@ exports.getTerms = async (req, res, next) => {
       SELECT t.*, 
              (SELECT COUNT(*) FROM subjects WHERE term_id = t.id) as subjects_count
       FROM terms t 
-      WHERE (t.is_deleted = FALSE OR NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'terms' AND column_name = 'is_deleted'
-      ))
-      AND (t.is_published = TRUE OR NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'terms' AND column_name = 'is_published'
-      ))
+      WHERE t.is_published = TRUE
       ORDER BY created_at ASC
     `);
     res.json({

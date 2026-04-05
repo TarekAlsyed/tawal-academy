@@ -75,17 +75,29 @@ const getSecurityDashboardStats = async (req, res) => {
     
     // Get Security Audit Logs (Intrusion attempts)
     const intrusionAttempts = await pool.query(`
-      SELECT threat_type, severity, COUNT(*) as count
-      FROM security_audit_logs
+      SELECT violation_type as threat_type, severity, COUNT(*) as count
+      FROM student_violations
       WHERE created_at > NOW() - INTERVAL '24 hours'
-      GROUP BY threat_type, severity
+      GROUP BY violation_type, severity
       ORDER BY count DESC
+    `);
+
+    // Get Recent Student Violations (Real-time Threat Radar)
+    const recentViolations = await pool.query(`
+      SELECT sv.*, u.name as student_name, u.email as student_email
+      FROM student_violations sv
+      JOIN users u ON sv.user_id = u.id
+      ORDER BY sv.created_at DESC
+      LIMIT 10
     `);
 
     // Get Active Sessions count
     const activeSessions = await pool.query(`
       SELECT COUNT(*) as count FROM sessions WHERE is_active = TRUE
     `);
+
+    // System Health Pulse (Based on DB status and error count)
+    const healthPulse = 100 - Math.min(recentErrors.length * 2, 30); 
 
     // Simulated Heatmap Data (Since we don't have GeoIP yet)
     const heatmapData = [
@@ -98,40 +110,29 @@ const getSecurityDashboardStats = async (req, res) => {
     
     // Get threat level (based on last scan or recent critical errors)
     let currentThreatLevel = 'safe';
-    if (parseInt(systemStats.critical_errors || 0) > 0) currentThreatLevel = 'high';
-    if (parseInt(securityStats.high_threat_scans || 0) > 0) currentThreatLevel = 'critical';
-
-    // System Resources
-    const memory = process.memoryUsage();
-    const systemResources = {
-      memoryUsage: Math.round((memory.heapUsed / memory.heapTotal) * 100),
-      cpuUsage: Math.round(Math.random() * 30) + 5, // Simulated CPU for now
-      uptime: Math.round(process.uptime()),
-      responseTime: 120 // Placeholder
-    };
+    if (recentErrors.some(e => e.severity === 'critical') || recentViolations.rows.some(v => v.severity === 'high')) {
+      currentThreatLevel = 'danger';
+    } else if (recentErrors.length > 5 || recentViolations.rows.length > 3) {
+      currentThreatLevel = 'warning';
+    }
 
     res.json({
       success: true,
       data: {
         stats: {
-          totalErrors: parseInt(systemStats.total_errors || 0),
-          activeErrors: parseInt(systemStats.active_errors || 0),
-          criticalErrors: parseInt(systemStats.critical_errors || 0),
-          last24hErrors: parseInt(systemStats.last_24h_errors || 0),
-          totalScans: parseInt(securityStats.total_scans || 0),
-          highThreatScans: parseInt(securityStats.high_threat_scans || 0),
-          penetrationAttempts24h: parseInt(securityStats.penetration_attempts_24h || 0),
+          systemErrors: systemStats,
+          securityScans: securityStats,
           activeSessions: parseInt(activeSessions.rows[0]?.count || 0),
-          lastScanAt: securityStats.last_scan_at || null
+          healthPulse,
+          currentThreatLevel
         },
-        currentThreatLevel,
         recentErrors,
         recentScans,
+        recentViolations: recentViolations.rows,
         errorPatterns: errorPatterns.rows,
         timeline: timeline.rows,
         intrusionAttempts: intrusionAttempts.rows,
-        heatmapData,
-        systemResources
+        heatmapData
       }
     });
   } catch (error) {

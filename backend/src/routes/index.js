@@ -10,6 +10,7 @@ const questionRoutes = require('./questionRoutes');
 const notificationRoutes = require('./notificationRoutes');
 const adminRoutes = require('./adminRoutes');
 const fileRoutes = require('./fileRoutes');
+const monitoringRoutes = require('./monitoringRoutes');
 const { upload } = require('../middlewares/upload');
 const ImageStorageService = require('../services/imageStorageService');
 const auth = require('../middlewares/auth');
@@ -50,6 +51,7 @@ router.post('/upload-course-background', upload.single('image'), async (req, res
 
 // Public routes (No Auth needed)
 router.use('/auth', authRoutes);
+router.use('/monitoring', monitoringRoutes);
 
 // Admin routes
 router.use('/admin', adminRoutes);

@@ -32,14 +32,25 @@ exports.getAllStudents = async (req, res, next) => {
   try {
     const { limit = 50, offset = 0 } = req.query;
     
-    const students = await User.findAll(parseInt(limit), parseInt(offset));
+    const result = await pool.query(
+      `SELECT u.id, u.name, u.email, u.total_points, u.registration_date, u.last_login, u.is_blocked, u.device_id,
+              CASE WHEN u.is_blocked THEN 'blocked' ELSE 'active' END as status,
+              EXISTS (SELECT 1 FROM blocked_list WHERE email = u.email) as is_email_blocked,
+              EXISTS (SELECT 1 FROM blocked_list WHERE device_id = u.device_id AND u.device_id IS NOT NULL) as is_device_blocked
+       FROM users u
+       ORDER BY u.total_points DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+
+    const students = result.rows;
     
     let totalCount = 0;
     try {
-      totalCount = await User.count();
+      const countResult = await pool.query('SELECT COUNT(*) FROM users');
+      totalCount = parseInt(countResult.rows[0].count);
     } catch (countError) {
       console.error('[getAllStudents] Count error:', countError.message);
-      // Fallback to students length if count fails, though not ideal
       totalCount = students.length;
     }
 
@@ -68,11 +79,20 @@ exports.searchStudents = async (req, res, next) => {
       });
     }
 
-    const students = await User.search(query);
+    const result = await pool.query(
+      `SELECT u.id, u.name, u.email, u.total_points, u.registration_date, u.last_login, u.is_blocked, u.device_id,
+              CASE WHEN u.is_blocked THEN 'blocked' ELSE 'active' END as status,
+              EXISTS (SELECT 1 FROM blocked_list WHERE email = u.email) as is_email_blocked,
+              EXISTS (SELECT 1 FROM blocked_list WHERE device_id = u.device_id AND u.device_id IS NOT NULL) as is_device_blocked
+       FROM users u
+       WHERE u.name ILIKE $1 OR u.email ILIKE $1
+       ORDER BY u.total_points DESC`,
+      [`%${query}%`]
+    );
 
     res.json({
       success: true,
-      data: { students }
+      data: { students: result.rows }
     });
   } catch (error) {
     next(error);
@@ -105,6 +125,28 @@ exports.unblockStudent = async (req, res, next) => {
     res.json({
       success: true,
       message: 'تم إلغاء حظر الطالب والجهاز بنجاح'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.unblockEmail = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'الإيميل مطلوب'
+      });
+    }
+
+    await pool.query('DELETE FROM blocked_list WHERE email = $1', [email]);
+
+    res.json({
+      success: true,
+      message: 'تم إلغاء حظر الإيميل بنجاح'
     });
   } catch (error) {
     next(error);

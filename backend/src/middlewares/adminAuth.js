@@ -16,6 +16,23 @@ const adminAuth = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // 1. اكتشاف محاولات دخول الطلبة للوحة التحكم (Security Violation)
+    if (decoded.userId && !decoded.adminId) {
+      console.warn(`[SECURITY ALERT] Student ${decoded.email} attempted to access admin route ${req.path}`);
+      
+      // تسجيل انتهاك أمني للطالب
+      await pool.query(
+        `INSERT INTO student_violations (user_id, violation_type, severity, details, ip_address, device_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [decoded.userId, 'ADMIN_ACCESS_ATTEMPT', 'critical', JSON.stringify({ path: req.path, userAgent: req.get('User-Agent') }), req.ip, req.header('X-Device-Id')]
+      );
+
+      return res.status(403).json({
+        success: false,
+        message: 'محاولة وصول غير مصرح بها. لقد تم تسجيل هذا الإجراء أمنياً.'
+      });
+    }
+
     if (!decoded.adminId || decoded.type !== 'access') {
       return res.status(401).json({
         success: false,

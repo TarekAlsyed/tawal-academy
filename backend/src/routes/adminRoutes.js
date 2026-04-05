@@ -177,6 +177,7 @@ router.post('/students/:id/block', adminAuth, checkPermission('students', 'block
 router.post('/students/:id/unblock', adminAuth, checkPermission('students', 'unblock'), adminStudentController.unblockStudent);
 router.post('/students/:id/reset-device', adminAuth, checkPermission('students', 'unblock'), adminStudentController.resetDevice);
 router.post('/students/unblock-device', adminAuth, checkPermission('students', 'unblock'), adminStudentController.unblockDevice);
+router.post('/students/unblock-email', adminAuth, checkPermission('students', 'unblock'), adminStudentController.unblockEmail);
 router.delete('/students/:id', adminAuth, checkPermission('students', 'delete'), adminStudentController.deleteStudent);
 router.get('/students/:id/activity', adminAuth, checkPermission('students', 'view'), adminStatsController.getStudentLogs);
 router.get('/students/export', adminAuth, checkPermission('students', 'view'), adminStudentController.exportStudentsPDF);

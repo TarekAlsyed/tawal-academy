@@ -2,7 +2,7 @@ const pool = require('../config/database');
 const { validateEmail } = require('../utils/emailValidator');
 
 class User {
-  static async findOrCreate(name, email, deviceId) {
+  static async findOrCreate(name, email, deviceId, fingerprint, ipAddress = null, userAgent = null) {
     const client = await pool.connect();
     
     try {
@@ -13,26 +13,20 @@ class User {
 
       await client.query('BEGIN');
 
-      // التحقق من الحظر
-      const blockedEmailCheck = await client.query(
-        'SELECT id FROM blocked_list WHERE email = $1',
-        [email]
+      // 1. التحقق من الحظر الشامل
+      const blockedCheck = await client.query(
+        `SELECT reason FROM blocked_list 
+         WHERE (email = $1 OR device_id = $2 OR (fingerprint = $3 AND fingerprint IS NOT NULL))
+         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+         LIMIT 1`,
+        [email, deviceId, fingerprint]
       );
 
-      if (blockedEmailCheck.rows.length > 0) {
-        throw new Error('هذا الإيميل محظور. يرجى التواصل مع الإدارة');
+      if (blockedCheck.rows.length > 0) {
+        throw new Error(blockedCheck.rows[0].reason || 'هذا الحساب أو الجهاز محظور أمنياً. يرجى التواصل مع الإدارة');
       }
 
-      const blockedDeviceCheck = await client.query(
-        'SELECT id FROM blocked_list WHERE device_id = $1',
-        [deviceId]
-      );
-
-      if (blockedDeviceCheck.rows.length > 0) {
-        throw new Error('هذا الجهاز محظور. يرجى التواصل مع الإدارة');
-      }
-
-      // البحث عن المستخدم بالإيميل فقط
+      // 2. البحث عن المستخدم
       const existingUser = await client.query(
         'SELECT * FROM users WHERE email = $1',
         [email]
@@ -41,22 +35,42 @@ class User {
       let user;
 
       if (existingUser.rows.length > 0) {
-        // تحديث device_id وآخر تسجيل دخول
+        user = existingUser.rows[0];
+
+        // 3. سياسة ربط الجهاز الصارمة (Zero Trust)
+        // إذا كان المستخدم لديه بصمة جهاز مسجلة بالفعل، يجب أن تتطابق
+        if (user.fingerprint && fingerprint && user.fingerprint !== fingerprint) {
+          // تسجيل محاولة اختراق أو مشاركة حساب
+          await client.query(
+            `INSERT INTO student_violations (user_id, violation_type, severity, details, ip_address, device_id)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [user.id, 'DEVICE_MISMATCH', 'high', JSON.stringify({ oldFingerprint: user.fingerprint, newFingerprint: fingerprint, userAgent }), ipAddress, deviceId]
+          );
+
+          throw new Error('عذراً، هذا الحساب مرتبط بجهاز آخر. لا يمكن فتح الحساب من أكثر من جهاز في نفس الوقت لحماية خصوصيتك.');
+        }
+
+        // تحديث البيانات وآخر تسجيل دخول
         const updateResult = await client.query(
           `UPDATE users 
-           SET device_id = $1, last_login = CURRENT_TIMESTAMP 
-           WHERE email = $2 
+           SET device_id = $1, 
+               fingerprint = COALESCE(fingerprint, $2),
+               last_login = CURRENT_TIMESTAMP,
+               last_ip = $3,
+               last_user_agent = $4,
+               failed_attempts = 0
+           WHERE id = $5 
            RETURNING *`,
-          [deviceId, email]
+          [deviceId, fingerprint, ipAddress, userAgent, user.id]
         );
         user = updateResult.rows[0];
       } else {
-        // إنشاء مستخدم جديد
+        // إنشاء مستخدم جديد وتسجيل بصمته لأول مرة
         const insertResult = await client.query(
-          `INSERT INTO users (name, email, device_id, last_login)
-           VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+          `INSERT INTO users (name, email, device_id, fingerprint, last_login, last_ip, last_user_agent)
+           VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, $6)
            RETURNING *`,
-          [name, email, deviceId]
+          [name, email, deviceId, fingerprint, ipAddress, userAgent]
         );
         user = insertResult.rows[0];
       }

@@ -17,7 +17,7 @@ exports.login = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'الإيميل وكلمة المرور مطلوبان' });
     }
     
-    const admin = await Admin.login(email, password);
+    const admin = await Admin.login(email, password, req.ip || req.connection.remoteAddress);
     
     // Check if MFA is enabled
     if (admin.mfa_enabled) {

@@ -224,6 +224,23 @@ class User {
     const result = await pool.query('SELECT COUNT(*) as count FROM users');
     return parseInt(result.rows[0].count);
   }
+
+  static async logActivity(userId, actionType, details = {}, ipAddress = null) {
+    try {
+      const query = `
+        INSERT INTO points_log (user_id, action_type, points, details, created_at)
+        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+        RETURNING *
+      `;
+      const values = [userId, actionType, 0, JSON.stringify(details)];
+      const result = await pool.query(query, values);
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error logging student activity:', error.message);
+      // Don't throw error to prevent login failure
+      return null;
+    }
+  }
 }
 
 module.exports = User;

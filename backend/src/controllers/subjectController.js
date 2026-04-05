@@ -238,14 +238,41 @@ exports.downloadPDF = async (req, res, next) => {
 
     const fileUrl = pdf.rows[0].file_url;
     
-    // If it's already a full URL (like Cloudinary), return it as is
-    if (fileUrl.startsWith('http')) {
+    // If it's already a full URL (like Cloudinary), inject watermark and return
+    if (fileUrl.startsWith('http') || fileUrl.includes('res.cloudinary.com')) {
+      let finalUrl = fileUrl;
+      
+      // Inject Cloudinary dynamic watermark if it's a Cloudinary URL
+      if (finalUrl.includes('res.cloudinary.com') && !finalUrl.includes('/admin/')) {
+        // High visibility: o_40 (opacity), co_black, bo_3px_solid_white (outline)
+        // Adding fl_attachment to suggest it's protected and adding print-specific optimization if possible
+        const watermarkTransformation = 'l_text:Arial_120_bold_stroke:Tawal%20Academy,g_center,o_40,a_-35,fl_tiled,co_black,bo_3px_solid_white';
+        
+        if (finalUrl.includes('/upload/')) {
+          const parts = finalUrl.split('/upload/');
+          const versionPart = parts[1].split('/');
+          
+          if (versionPart[0].startsWith('v') && !isNaN(versionPart[0].substring(1))) {
+            finalUrl = `${parts[0]}/upload/${watermarkTransformation}/${parts[1]}`;
+          } else {
+            finalUrl = `${parts[0]}/upload/${watermarkTransformation},${parts[1]}`;
+          }
+          
+          // Force high quality for printing if it's a PDF
+          if (finalUrl.endsWith('.pdf')) {
+            // fl_attachment: Ensures browser treats it as a downloadable/printable file
+            // dpr_2.0: Higher resolution for print
+            finalUrl = finalUrl.replace('/upload/', '/upload/q_auto:best,dn_300,dpr_2.0/');
+          }
+        }
+      }
+
       return res.json({
         success: true,
         message: pointsAdded ? 'تم إضافة 5 نقاط لرصيدك' : 'تم تحميل الملف',
         data: {
           url: fileUrl,
-          full_url: fileUrl
+          full_url: finalUrl
         }
       });
     }
@@ -299,14 +326,33 @@ exports.viewImage = async (req, res, next) => {
 
     const fileUrl = image.rows[0].file_url;
 
-    // If it's already a full URL (like Cloudinary), return it as is
-    if (fileUrl.startsWith('http')) {
+    // If it's already a full URL (like Cloudinary), inject watermark and return
+    if (fileUrl.startsWith('http') || fileUrl.includes('res.cloudinary.com')) {
+      let finalUrl = fileUrl;
+      
+      // Inject Cloudinary dynamic watermark if it's a Cloudinary URL
+      if (finalUrl.includes('res.cloudinary.com') && !finalUrl.includes('/admin/')) {
+        // High visibility: o_40 (opacity), co_black, bo_3px_solid_white (outline)
+        const watermarkTransformation = 'l_text:Arial_120_bold_stroke:Tawal%20Academy,g_center,o_40,a_-35,fl_tiled,co_black,bo_3px_solid_white';
+        
+        if (finalUrl.includes('/upload/')) {
+          const parts = finalUrl.split('/upload/');
+          const versionPart = parts[1].split('/');
+          
+          if (versionPart[0].startsWith('v') && !isNaN(versionPart[0].substring(1))) {
+            finalUrl = `${parts[0]}/upload/${watermarkTransformation}/${parts[1]}`;
+          } else {
+            finalUrl = `${parts[0]}/upload/${watermarkTransformation},${parts[1]}`;
+          }
+        }
+      }
+
       return res.json({
         success: true,
         message: pointsAdded ? 'تم إضافة نقطتين لرصيدك' : 'تم عرض الصورة',
         data: {
           url: fileUrl,
-          full_url: fileUrl
+          full_url: finalUrl
         }
       });
     }

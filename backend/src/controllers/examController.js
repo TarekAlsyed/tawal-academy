@@ -181,6 +181,29 @@ exports.submitExam = async (req, res, next) => {
     if (result.passed) {
       const exam = await Exam.findById(id);
       await notifyLevelPassed(userId, exam.subject_name, exam.level, result.score);
+      
+      // Notify about correction and score
+      try {
+        await pool.query(
+          `INSERT INTO notifications (user_id, message, type, link)
+           VALUES ($1, $2, $3, $4)`,
+          [userId, `تم تصحيح امتحانك بنجاح: ${exam.title}. الدرجة: ${result.score}% 🎉`, 'exam_result', `/#/exam-result/${id}`]
+        );
+      } catch (notifyErr) {
+        console.error('Failed to notify student about exam pass:', notifyErr);
+      }
+    } else {
+      // Notify even if failed
+      try {
+        const exam = await Exam.findById(id);
+        await pool.query(
+          `INSERT INTO notifications (user_id, message, type, link)
+           VALUES ($1, $2, $3, $4)`,
+          [userId, `تم تصحيح امتحانك: ${exam.title}. الدرجة: ${result.score}%. حظاً أوفر في المرة القادمة.`, 'exam_result', `/#/exam-result/${id}`]
+        );
+      } catch (notifyErr) {
+        console.error('Failed to notify student about exam result:', notifyErr);
+      }
     }
 
     res.json({

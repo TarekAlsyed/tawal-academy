@@ -86,6 +86,25 @@ exports.createExam = async (req, res, next) => {
     // تسجيل النشاط
     await Admin.logActivity(req.admin.id, 'create_exam', { examId: exam.id }, req.ip);
     
+    // Notify students about new exam
+    if (is_published) {
+      try {
+        const subjectResult = await pool.query('SELECT name FROM subjects WHERE id = $1', [subject_id]);
+        const subjectName = subjectResult.rows[0]?.name || 'غير معروف';
+        const students = await pool.query('SELECT id FROM users');
+        const notificationPromises = students.rows.map(student => 
+          pool.query(
+            `INSERT INTO notifications (user_id, message, type, link)
+             VALUES ($1, $2, $3, $4)`,
+            [student.id, `تم نشر امتحان جديد: ${title} في مادة ${subjectName}`, 'new_exam', `/#/subjects/${subject_id}`]
+          )
+        );
+        await Promise.all(notificationPromises);
+      } catch (notifyErr) {
+        console.error('Failed to notify students about new exam:', notifyErr);
+      }
+    }
+
     res.status(201).json({ 
       success: true, 
       message: 'تم إنشاء الامتحان بنجاح', 

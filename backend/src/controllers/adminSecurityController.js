@@ -64,10 +64,10 @@ const getSecurityDashboardStats = async (req, res) => {
       LIMIT 5
     `);
 
-    // Get Threat Timeline (Last 7 days)
+    // Get Threat Timeline (Last 7 days) - Using Student Violations for more realism
     const timeline = await pool.query(`
       SELECT TO_CHAR(created_at, 'YYYY-MM-DD') as date, COUNT(*) as count
-      FROM security_scans
+      FROM student_violations
       WHERE created_at > NOW() - INTERVAL '7 days'
       GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD')
       ORDER BY date ASC

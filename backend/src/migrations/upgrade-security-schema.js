@@ -7,36 +7,39 @@ const upgradeSecuritySchema = async () => {
     await client.query('BEGIN');
     console.log('🚀 Starting Security Schema Upgrade...');
 
-    // 1. Add fingerprint to users (Students)
-    await client.query(`
-      ALTER TABLE users 
-      ADD COLUMN IF NOT EXISTS fingerprint TEXT,
-      ADD COLUMN IF NOT EXISTS failed_attempts INTEGER DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS last_failed_attempt TIMESTAMP,
-      ADD COLUMN IF NOT EXISTS last_ip VARCHAR(100),
-      ADD COLUMN IF NOT EXISTS last_user_agent TEXT
-    `);
-    console.log('✅ Added advanced tracking columns to users table');
+    // 1. Add advanced tracking columns to users table
+    const userCols = [
+      ['fingerprint', 'TEXT'],
+      ['failed_attempts', 'INTEGER DEFAULT 0'],
+      ['last_failed_attempt', 'TIMESTAMP'],
+      ['last_ip', 'VARCHAR(100)'],
+      ['last_user_agent', 'TEXT']
+    ];
+    for (const [col, type] of userCols) {
+      await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col} ${type}`);
+    }
+    console.log('✅ Repaired users table');
 
     // 2. Add fingerprint to sessions (Admins)
-    await client.query(`
-      ALTER TABLE sessions 
-      ADD COLUMN IF NOT EXISTS fingerprint TEXT,
-      ADD COLUMN IF NOT EXISTS device_id VARCHAR(500)
-    `);
-    console.log('✅ Added fingerprint column to sessions table');
+    const sessionCols = [['fingerprint', 'TEXT'], ['device_id', 'VARCHAR(500)']];
+    for (const [col, type] of sessionCols) {
+      await client.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS ${col} ${type}`);
+    }
+    console.log('✅ Repaired sessions table');
 
     // 3. Add security tracking to admins
-    await client.query(`
-      ALTER TABLE admins 
-      ADD COLUMN IF NOT EXISTS failed_attempts INTEGER DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS last_failed_attempt TIMESTAMP,
-      ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT FALSE,
-      ADD COLUMN IF NOT EXISTS blocked_until TIMESTAMP
-    `);
-    console.log('✅ Added security tracking to admins table');
+    const adminCols = [
+      ['failed_attempts', 'INTEGER DEFAULT 0'],
+      ['last_failed_attempt', 'TIMESTAMP'],
+      ['is_blocked', 'BOOLEAN DEFAULT FALSE'],
+      ['blocked_until', 'TIMESTAMP']
+    ];
+    for (const [col, type] of adminCols) {
+      await client.query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS ${col} ${type}`);
+    }
+    console.log('✅ Repaired admins table');
 
-    // 4. Create blocked_list if it doesn't exist or add missing columns
+    // 4. Robust blocked_list table check and repair
     await client.query(`
       CREATE TABLE IF NOT EXISTS blocked_list (
         id SERIAL PRIMARY KEY,
@@ -50,12 +53,19 @@ const upgradeSecuritySchema = async () => {
       )
     `);
     
-    await client.query(`
-      ALTER TABLE blocked_list 
-      ADD COLUMN IF NOT EXISTS fingerprint TEXT,
-      ADD COLUMN IF NOT EXISTS ip_address VARCHAR(100)
-    `);
-    console.log('✅ Ensured blocked_list table and missing columns (fingerprint, ip_address) exist');
+    // Add all potential missing columns to blocked_list
+    const blockedListCols = [
+      ['fingerprint', 'TEXT'],
+      ['ip_address', 'VARCHAR(100)'],
+      ['expires_at', 'TIMESTAMP'],
+      ['email', 'VARCHAR(255)'],
+      ['device_id', 'VARCHAR(500)']
+    ];
+
+    for (const [col, type] of blockedListCols) {
+      await client.query(`ALTER TABLE blocked_list ADD COLUMN IF NOT EXISTS ${col} ${type}`);
+    }
+    console.log('✅ Fully repaired blocked_list table');
 
     // 5. Create student_violations table if it doesn't exist
     await client.query(`
@@ -67,9 +77,17 @@ const upgradeSecuritySchema = async () => {
         details JSONB,
         ip_address VARCHAR(100),
         device_id VARCHAR(500),
+        fingerprint TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    // Ensure all columns exist in student_violations (in case it was partially created)
+    const violationCols = [['ip_address', 'VARCHAR(100)'], ['device_id', 'VARCHAR(500)'], ['fingerprint', 'TEXT']];
+    for (const [col, type] of violationCols) {
+      await client.query(`ALTER TABLE student_violations ADD COLUMN IF NOT EXISTS ${col} ${type}`);
+    }
+    console.log('✅ Ensured student_violations table is complete');
     console.log('✅ Ensured student_violations table exists');
 
     await client.query('COMMIT');

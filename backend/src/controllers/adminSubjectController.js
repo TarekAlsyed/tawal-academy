@@ -151,6 +151,23 @@ exports.addPDFs = async (req, res, next) => {
       }
       
       await Admin.logActivity(req.admin.id, 'upload_pdfs', { subjectId: id, count: created.length }, req.ip);
+      
+      // Notify students about new PDF materials
+      try {
+        const subject = await Subject.findById(id);
+        const students = await pool.query('SELECT id FROM users');
+        const notificationPromises = students.rows.map(student => 
+          pool.query(
+            `INSERT INTO notifications (user_id, message, type, link)
+             VALUES ($1, $2, $3, $4)`,
+            [student.id, `تمت إضافة ${created.length} ملف PDF جديد في مادة: ${subject.name}`, 'new_content', `/#/subjects/${id}`]
+          )
+        );
+        await Promise.all(notificationPromises);
+      } catch (notifyErr) {
+        console.error('Failed to notify students about new PDFs:', notifyErr);
+      }
+
       console.log(`[UPLOAD DEBUG] Successfully uploaded ${created.length} PDFs to DB`);
       res.status(201).json({ success: true, message: `تم رفع ${created.length} ملف بنجاح`, data: { pdfs: created } });
     } catch (error) {
@@ -200,7 +217,24 @@ exports.addImages = async (req, res, next) => {
         created.push(result);
       }
       await Admin.logActivity(req.admin.id, 'upload_images', { subjectId: id, count: created.length }, req.ip);
-      res.status(201).json({ success: true, message: 'تم رفع الصور بنجاح', data: { images: created, count: created.length } });
+      
+      // Notify students about new image materials
+      try {
+        const subject = await Subject.findById(id);
+        const students = await pool.query('SELECT id FROM users');
+        const notificationPromises = students.rows.map(student => 
+          pool.query(
+            `INSERT INTO notifications (user_id, message, type, link)
+             VALUES ($1, $2, $3, $4)`,
+            [student.id, `تمت إضافة ${created.length} صور جديدة في مادة: ${subject.name}`, 'new_content', `/#/subjects/${id}`]
+          )
+        );
+        await Promise.all(notificationPromises);
+      } catch (notifyErr) {
+        console.error('Failed to notify students about new images:', notifyErr);
+      }
+
+      res.status(201).json({ success: true, message: `تم رفع ${created.length} صورة بنجاح`, data: { images: created } });
     } catch (error) {
       throw error;
     }

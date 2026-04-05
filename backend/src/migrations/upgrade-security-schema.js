@@ -36,21 +36,25 @@ const upgradeSecuritySchema = async () => {
     `);
     console.log('✅ Added security tracking to admins table');
 
-    // 4. Create blocked_list if it doesn't exist
+    // 4. Create blocked_list if it doesn't exist or add missing columns
     await client.query(`
       CREATE TABLE IF NOT EXISTS blocked_list (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255),
         ip_address VARCHAR(100),
         device_id VARCHAR(500),
-        fingerprint TEXT,
         reason TEXT,
         blocked_by INTEGER REFERENCES admins(id),
         expires_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    console.log('✅ Ensured blocked_list table exists');
+    
+    await client.query(`
+      ALTER TABLE blocked_list 
+      ADD COLUMN IF NOT EXISTS fingerprint TEXT
+    `);
+    console.log('✅ Ensured blocked_list table and fingerprint column exist');
 
     // 5. Create student_violations table if it doesn't exist
     await client.query(`

@@ -52,9 +52,10 @@ const upgradeSecuritySchema = async () => {
     
     await client.query(`
       ALTER TABLE blocked_list 
-      ADD COLUMN IF NOT EXISTS fingerprint TEXT
+      ADD COLUMN IF NOT EXISTS fingerprint TEXT,
+      ADD COLUMN IF NOT EXISTS ip_address VARCHAR(100)
     `);
-    console.log('✅ Ensured blocked_list table and fingerprint column exist');
+    console.log('✅ Ensured blocked_list table and missing columns (fingerprint, ip_address) exist');
 
     // 5. Create student_violations table if it doesn't exist
     await client.query(`

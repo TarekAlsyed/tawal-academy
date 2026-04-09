@@ -3,6 +3,9 @@ import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'reac
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import api from './services/api';
+import Watermark from './components/Watermark';
+import { FiMoon, FiSun } from 'react-icons/fi';
 
 // Student Pages
 const StudentLogin = lazy(() => import('./pages/student/Login'));
@@ -84,6 +87,66 @@ const ProtectedRoute = ({ children, adminOnly = false, superAdminOnly = false })
 
 function AppContent() {
   const location = useLocation();
+  const [darkMode, setDarkMode] = React.useState(() => {
+    return localStorage.getItem('darkMode') === 'true';
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+    localStorage.setItem('darkMode', darkMode);
+  }, [darkMode]);
+
+  const toggleDarkMode = () => setDarkMode(!darkMode);
+
+  useEffect(() => {
+    // Global Error Hunting System (Client-side)
+    const reportError = (errorData) => {
+      api.post('/monitoring/report-error', errorData)
+        .catch(e => console.error('Failed to report global error:', e));
+    };
+
+    const handleGlobalError = (event) => {
+      reportError({
+        errorType: 'WINDOW_ERROR',
+        message: event.message,
+        stackTrace: event.error?.stack,
+        component: 'Frontend Global',
+        severity: 'medium',
+        details: {
+          filename: event.filename,
+          lineno: event.lineno,
+          colno: event.colno,
+          url: window.location.href
+        }
+      });
+    };
+
+    const handleUnhandledRejection = (event) => {
+      reportError({
+        errorType: 'UNHANDLED_PROMISE',
+        message: event.reason?.message || String(event.reason),
+        stackTrace: event.reason?.stack,
+        component: 'Frontend Promise',
+        severity: 'medium',
+        details: {
+          reason: event.reason,
+          url: window.location.href
+        }
+      });
+    };
+
+    window.addEventListener('error', handleGlobalError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('error', handleGlobalError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
 
   useEffect(() => {
     // Handle potential GitHub Pages redirect or direct URL access
@@ -370,6 +433,17 @@ function AppContent() {
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Suspense>
+      
+      {/* Dark Mode Toggle Button for Students */}
+      {!location.pathname.includes('/admin') && (
+        <button 
+          className="dark-mode-toggle" 
+          onClick={toggleDarkMode}
+          aria-label="Toggle Dark Mode"
+        >
+          {darkMode ? <FiSun size={28} /> : <FiMoon size={28} />}
+        </button>
+      )}
     </>
   );
 }
@@ -378,7 +452,10 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <AppContent />
+        <div className="app-container">
+          <AppContent />
+          <Watermark />
+        </div>
       </AuthProvider>
     </Router>
   );

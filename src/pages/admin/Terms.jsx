@@ -8,6 +8,7 @@ import AdminLayout from '../../components/admin/AdminLayout';
 
 const Terms = () => {
   const [terms, setTerms] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingTerm, setEditingTerm] = useState(null);
@@ -56,11 +57,15 @@ const Terms = () => {
           render: response.data.message || (editingTerm ? 'تم تحديث الترم بنجاح' : 'تم إضافة الترم بنجاح'),
           type: 'success',
           isLoading: false,
-          autoClose: 3000
+          autoClose: 2000
         });
+        
+        // إغلاق النافذة وتصفير البيانات فوراً
         setShowModal(false);
         setFormData({ name: '', is_published: true });
         setEditingTerm(null);
+        
+        // تحديث القائمة في الخلفية
         fetchTerms(true);
       } else {
         toast.update(loadingToast, {
@@ -91,38 +96,38 @@ const Terms = () => {
   };
 
   const toggleVisibility = async (term) => {
-    const loadingToast = toast.loading('جاري تحديث الحالة...');
+    // 1. التحديث الفوري في الواجهة (Optimistic Update)
+    const originalTerms = [...terms];
+    const newStatus = !term.is_published;
+    
+    setTerms(prevTerms => prevTerms.map(t => 
+      t.id === term.id ? { ...t, is_published: newStatus } : t
+    ));
+
     try {
-      const newStatus = !term.is_published;
       const response = await api.put(API_ENDPOINTS.ADMIN_TERM_BY_ID(term.id), { 
         name: term.name,
         is_published: newStatus 
       });
       
       if (response.data.success) {
-        toast.update(loadingToast, {
-          render: response.data.message || (newStatus ? 'تم إظهار الترم للطلاب بنجاح' : 'تم إخفاء الترم عن الطلاب بنجاح'),
-          type: 'success',
-          isLoading: false,
-          autoClose: 3000
+        toast.success(newStatus ? 'تم إظهار الترم بنجاح' : 'تم إخفاء الترم بنجاح', { 
+          autoClose: 2000,
+          hideProgressBar: true,
+          position: "top-center"
         });
+        // تحديث البيانات في الخلفية للتأكد من المزامنة
         fetchTerms(true);
       } else {
-        toast.update(loadingToast, {
-          render: response.data.message || 'فشل تحديث الحالة',
-          type: 'error',
-          isLoading: false,
-          autoClose: 3000
-        });
+        // التراجع في حال الفشل
+        setTerms(originalTerms);
+        toast.error(response.data.message || 'فشل تحديث الحالة');
       }
     } catch (error) {
+      // التراجع في حال الخطأ
+      setTerms(originalTerms);
       console.error('Toggle visibility error:', error);
-      toast.update(loadingToast, {
-        render: error.response?.data?.message || 'فشل تغيير حالة الظهور',
-        type: 'error',
-        isLoading: false,
-        autoClose: 3000
-      });
+      toast.error(error.response?.data?.message || 'فشل تغيير حالة الظهور');
     }
   };
 

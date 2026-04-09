@@ -188,33 +188,33 @@ const SecurityDashboard = () => {
 
   const statsCards = useMemo(() => [
     { 
-      title: 'محاولات الاختراق (24س)', 
-      value: data?.stats?.penetrationAttempts24h || 0, 
-      icon: <FiShield />, 
-      color: 'var(--admin-danger)',
-      trend: '+12%'
+      title: 'نبض المنصة (Health Pulse)', 
+      value: `${data?.stats?.healthPulse || 100}%`, 
+      icon: <FiActivity />, 
+      color: (data?.stats?.healthPulse || 100) > 80 ? 'var(--admin-success)' : 'var(--admin-warning)',
+      trend: (data?.stats?.healthPulse || 100) >= 100 ? 'مستقر' : '-5%'
+    },
+    { 
+      title: 'مستوى التهديد الحالي', 
+      value: data?.stats?.currentThreatLevel === 'danger' ? 'حرج' : data?.stats?.currentThreatLevel === 'warning' ? 'متوسط' : 'آمن', 
+      icon: <FiAlertTriangle />, 
+      color: data?.stats?.currentThreatLevel === 'danger' ? 'var(--admin-danger)' : data?.stats?.currentThreatLevel === 'warning' ? 'var(--admin-warning)' : 'var(--admin-success)',
+      trend: data?.stats?.currentThreatLevel === 'safe' ? '0' : '+1'
     },
     { 
       title: 'الجلسات النشطة', 
       value: data?.stats?.activeSessions || 0, 
       icon: <FiUserCheck />, 
       color: 'var(--admin-primary)',
-      trend: 'مستقر'
+      trend: '+1'
     },
     { 
-      title: 'أخطاء النظام الحرجة', 
-      value: data?.stats?.criticalErrors || 0, 
+      title: 'الأخطاء غير المحلولة', 
+      value: data?.recentErrors?.length || 0, 
       icon: <FiAlertCircle />, 
-      color: 'var(--admin-warning)',
-      trend: '-5%'
-    },
-    { 
-      title: 'مستوى التهديد الحالي', 
-      value: data?.currentThreatLevel === 'safe' ? 'آمن' : data?.currentThreatLevel === 'high' ? 'مرتفع' : 'حرج', 
-      icon: <FiActivity />, 
-      color: data?.currentThreatLevel === 'safe' ? 'var(--admin-success)' : 'var(--admin-danger)',
-      trend: 'مراقب'
-    },
+      color: (data?.recentErrors?.length || 0) > 0 ? 'var(--admin-warning)' : 'var(--admin-success)',
+      trend: (data?.recentErrors?.length || 0) > 0 ? '+3' : '0'
+    }
   ], [data]);
 
   if (loading) return (
@@ -334,8 +334,42 @@ const SecurityDashboard = () => {
                 ))}
               </div>
 
-              {/* Charts Row */}
+              {/* Charts and Radar Row */}
               <div className="admin-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', marginBottom: '2rem' }}>
+                <div className="admin-card">
+                  <h3 style={{ marginBottom: '1.5rem' }}>رادار التهديدات (Real-time Threat Radar)</h3>
+                  <div className="admin-table-container">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>الطالب</th>
+                          <th>النوع</th>
+                          <th>المستوى</th>
+                          <th>الوقت</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data?.recentViolations?.length > 0 ? (
+                          data.recentViolations.map((v, i) => (
+                            <tr key={i}>
+                              <td>{v.student_name}</td>
+                              <td>{v.violation_type === 'DEVICE_MISMATCH' ? 'تغيير الجهاز' : v.violation_type}</td>
+                              <td>
+                                <span className={`badge badge-${v.severity === 'high' ? 'danger' : 'warning'}`}>
+                                  {v.severity === 'high' ? 'حرج' : 'متوسط'}
+                                </span>
+                              </td>
+                              <td>{new Date(v.created_at).toLocaleTimeString('ar-EG')}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr><td colSpan="4" style={{ textAlign: 'center' }}>لا توجد تهديدات نشطة</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
                 <div className="admin-card">
                   <h3 style={{ marginBottom: '1.5rem' }}>تحليل التهديدات (7 أيام)</h3>
                   <div style={{ height: '300px', width: '100%', minHeight: '300px', position: 'relative', overflow: 'hidden' }}>

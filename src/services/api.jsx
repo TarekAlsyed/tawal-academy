@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import CryptoJS from 'crypto-js';
+import { generateFingerprint } from '../utils/fingerprint';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://tawal-academy.alwaysdata.net/api';
 const APP_SECRET = import.meta.env.VITE_APP_APP_SECRET || 'tawal-elite-secret-2026-key';
@@ -30,6 +31,12 @@ const generateHMAC = (body, timestamp, secret) => {
     }
 };
 
+// Create a special instance for public/health checks that doesn't use interceptors if needed
+const healthApi = axios.create({
+  baseURL: API_URL,
+  timeout: 5000
+});
+
 // Create axios instance
 const api = axios.create({
   baseURL: API_URL,
@@ -40,9 +47,40 @@ const api = axios.create({
   }
 });
 
+// Advanced Retry Logic for Network Errors
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const { config } = error;
+    
+    // Only retry on network errors or 5xx server errors
+    if (!config || !config.retry || (error.response && error.response.status < 500)) {
+      return Promise.reject(error);
+    }
+
+    config.retryCount = config.retryCount || 0;
+
+    if (config.retryCount >= config.retry) {
+      return Promise.reject(error);
+    }
+
+    config.retryCount += 1;
+    console.warn(`[Network] Retrying request (${config.retryCount}/${config.retry}): ${config.url}`);
+    
+    // Exponential backoff
+    const delay = Math.pow(2, config.retryCount) * 1000;
+    await new Promise(resolve => setTimeout(resolve, delay));
+    
+    return api(config);
+  }
+);
+
 // Request interceptor - add token and security headers to requests
 api.interceptors.request.use(
   (config) => {
+    // Default retry settings
+    config.retry = 2; 
+    
     // Get deviceId from localStorage or generate one
     let deviceId = localStorage.getItem('deviceId');
     if (!deviceId) {
@@ -52,11 +90,15 @@ api.interceptors.request.use(
     
     // Add deviceId to headers
     const appSignature = import.meta.env.VITE_APP_SIGNATURE || 'tawal_academy_signature_secure_2026';
+    const fingerprint = generateFingerprint();
+    
     if (config.headers.set) {
       config.headers.set('X-Device-Id', deviceId);
+      config.headers.set('X-Fingerprint', fingerprint);
       config.headers.set('X-App-Signature', appSignature);
     } else {
       config.headers['X-Device-Id'] = deviceId;
+      config.headers['X-Fingerprint'] = fingerprint;
       config.headers['X-App-Signature'] = appSignature;
     }
 
@@ -341,5 +383,15 @@ export const adminGetDashboardStats = () => api.get('/admin/stats/dashboard');
 // Activity Logs
 export const adminGetActivityLogs = (params) => api.get('/admin/stats/activity', { params });
 export const adminGetStudentLogs = (studentId, params) => api.get(`/admin/students/${studentId}/activity`, { params });
+
+export const checkServerHealth = async () => {
+  try {
+    const response = await healthApi.get('/health');
+    return response.data;
+  } catch (error) {
+    console.error('Server Health Check Failed:', error);
+    return { status: 'offline' };
+  }
+};
 
 export default api;

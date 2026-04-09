@@ -38,6 +38,11 @@ input, textarea {
   body {
     display: none !important;
   }
+  .security-watermark-overlay {
+    display: flex !important;
+    opacity: 1 !important; /* Force full visibility on paper */
+    background-color: white !important;
+  }
 }
 
 .loading {
@@ -66,6 +71,66 @@ input, textarea {
 
 .Toastify__toast--error {
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+/* Dark Mode Support for Students */
+body.dark-mode {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+body.dark-mode .card-student {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+body.dark-mode .student-text-secondary {
+  color: #94a3b8;
+}
+
+body.dark-mode .exam-header {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border-bottom: 1px solid #334155;
+}
+
+body.dark-mode .pdf-viewer-container {
+  background-color: #1e293b !important;
+}
+
+body.dark-mode .pdf-viewer-header {
+  background-color: #0f172a !important;
+  border-bottom-color: #334155 !important;
+  color: white;
+}
+
+/* Dark Mode Toggle Button */
+.dark-mode-toggle {
+  position: fixed;
+  bottom: 30px;
+  right: 30px; /* تم نقله لليمين ليكون أوضح وأسهل في الوصول */
+  width: 55px; /* زيادة الحجم قليلاً */
+  height: 55px;
+  border-radius: 50%;
+  background: #6366f1; /* لون أرجواني واضح */
+  color: white;
+  border: 3px solid white; /* إضافة إطار أبيض ليبرز فوق أي خلفية */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  z-index: 2147483646; /* تحت العلامة المائية مباشرة وفوق كل شيء آخر */
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.dark-mode-toggle:hover {
+  transform: scale(1.15) rotate(15deg);
+  background: #4f46e5;
+}
+
+.dark-mode-toggle svg {
+  filter: drop-shadow(0 0 2px rgba(0,0,0,0.2));
 }
 
 /* تحسين ظهور أيقونة التقويم والأسهم في جميع حقول التاريخ والوقت في المنصة */

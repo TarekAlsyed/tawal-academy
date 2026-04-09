@@ -188,13 +188,17 @@ const Exam = () => {
 
       // تسجيل المخالفة في الخلفية
       try {
-        await api.post(API_ENDPOINTS.REPORT_VIOLATION, {
-          user_id: 'current',
-          exam_id: id,
-          violation_type: 'browser_switch',
-          description: reason,
-          severity: newCount >= 3 ? 'high' : 'medium',
-          action_taken: newCount >= 5 ? 'إنهاء الامتحان تلقائياً' : `تحذير رقم ${newCount}`
+        await api.post('/monitoring/report-error', {
+          errorType: 'EXAM_VIOLATION',
+          message: reason,
+          component: 'Exam Proctoring',
+          severity: newCount >= 3 ? 'critical' : 'high',
+          details: {
+            examId: id,
+            violationCount: newCount,
+            url: window.location.href,
+            userAgent: navigator.userAgent
+          }
         });
       } catch (err) {
         console.error('فشل تسجيل المخالفة:', err);

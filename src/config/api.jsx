@@ -1,16 +1,51 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://tawal-academy.alwaysdata.net/api';
 
-export const getFileUrl = (path) => {
+export const getFileUrl = (path, addWatermark = true) => {
   if (!path) return '';
-  if (path.startsWith('http')) return path;
-  if (path.startsWith('res.cloudinary.com')) return `https://${path}`;
   
-  // Clean the base URL by removing trailing slash and /api
+  // 1. Handle full URLs (Cloudinary)
+  if (path.startsWith('http') || path.includes('res.cloudinary.com')) {
+    let fullUrl = path.startsWith('http') ? path : `https://${path}`;
+    
+    // Inject Cloudinary dynamic watermark if it's a Cloudinary URL and not an admin asset
+    // We only apply it to PDF files (either .pdf extension or /raw/upload/ path)
+    const isPDF = fullUrl.toLowerCase().includes('.pdf') || fullUrl.includes('/raw/upload/');
+    
+        if (addWatermark && isPDF && fullUrl.includes('res.cloudinary.com') && !fullUrl.includes('/admin/')) {
+      // Standard Cloudinary PDF Watermark: Arial 60 bold, centered, 20% opacity, all pages
+      // Improved robust transformation string
+      const watermark = 'l_text:Arial_60_bold:Tawal%20Academy,co_black,o_20/fl_layer_apply,g_center,a_-45/pg_all';
+      
+      if (fullUrl.includes('/upload/')) {
+        const parts = fullUrl.split('/upload/');
+        const versionPart = parts[1].split('/');
+        
+        // Inject watermark correctly before version or public ID
+        let transformedUrl;
+        if (versionPart[0].startsWith('v') && !isNaN(versionPart[0].substring(1))) {
+          transformedUrl = `${parts[0]}/upload/${watermark}/${parts[1]}`;
+        } else {
+          transformedUrl = `${parts[0]}/upload/${watermark}/${parts[1]}`;
+        }
+        
+        // Ensure .pdf extension is preserved to prevent white screen
+        if (!transformedUrl.toLowerCase().endsWith('.pdf')) {
+          if (transformedUrl.includes('?')) {
+            const [urlPart, queryPart] = transformedUrl.split('?');
+            transformedUrl = `${urlPart}.pdf?${queryPart}`;
+          } else {
+            transformedUrl = `${transformedUrl}.pdf`;
+          }
+        }
+        return transformedUrl;
+      }
+    }
+    return fullUrl;
+  }
+  
+  // 2. Handle local paths (Backend uploads)
   const baseUrl = API_BASE_URL.replace(/\/api\/?$/, '').replace(/\/+$/, '');
-  // Ensure the path starts with exactly one slash and doesn't have duplicate slashes
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  
-  // Use URL object for more robust combining if possible, or simple replace for double slashes
   return `${baseUrl}${cleanPath}`.replace(/([^:]\/)\/+/g, '$1');
 };
 
@@ -76,6 +111,7 @@ export const API_ENDPOINTS = {
   ADMIN_UPLOAD_PDFS: (id) => `/admin/subjects/${id}/pdfs`,
   ADMIN_UPLOAD_IMAGES: (id) => `/admin/subjects/${id}/images`,
   ADMIN_DELETE_PDF: (subjectId, pdfId) => `/admin/subjects/${subjectId}/pdfs/${pdfId}`,
+  ADMIN_UPDATE_PDF_WATERMARK: (subjectId, pdfId) => `/admin/subjects/${subjectId}/pdfs/${pdfId}/watermark`,
   ADMIN_DELETE_IMAGE: (subjectId, imageId) => `/admin/subjects/${subjectId}/images/${imageId}`,
   
   // Bulk Delete
@@ -109,6 +145,7 @@ export const API_ENDPOINTS = {
   ADMIN_BLOCK_STUDENT: (id) => `/admin/students/${id}/block`,
   ADMIN_UNBLOCK_STUDENT: (id) => `/admin/students/${id}/unblock`,
   ADMIN_UNBLOCK_DEVICE: '/admin/students/unblock-device',
+  ADMIN_UNBLOCK_EMAIL: '/admin/students/unblock-email',
   ADMIN_DELETE_STUDENT: (id) => `/admin/students/${id}`,
   ADMIN_RESET_DEVICE: (id) => `/admin/students/${id}/reset-device`,
   ADMIN_STUDENTS_EXPORT: '/admin/students/export',

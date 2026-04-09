@@ -16,6 +16,7 @@ const SubjectDetail = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pdfs');
   const [uploading, setUploading] = useState(false);
+  const [hasWatermark, setHasWatermark] = useState(true);
 
   // التحقق من الصلاحيات التفصيلية (دعم القيم المنطقية والنصية للأمان)
   const isSuper = admin?.is_super_admin === true || admin?.is_super_admin === 'true';
@@ -68,6 +69,7 @@ const SubjectDetail = () => {
       }
       formData.append('pdfs', file);
     }
+    formData.append('has_watermark', hasWatermark);
 
     setUploading(true);
     try {
@@ -127,6 +129,21 @@ const SubjectDetail = () => {
       if (error.response?.status !== 403 && error.response?.status !== 202) {
         toast.error('فشل حذف الملف');
       }
+    }
+  };
+
+  const handleToggleWatermark = async (pdfId, currentStatus) => {
+    if (!canUploadPDF) return toast.error('لا تملك صلاحية تعديل الملفات');
+    try {
+      const response = await api.put(API_ENDPOINTS.ADMIN_UPDATE_PDF_WATERMARK(id, pdfId), {
+        has_watermark: !currentStatus
+      });
+      if (response.data.success) {
+        toast.success('تم تحديث حالة العلامة المائية');
+        fetchSubject();
+      }
+    } catch (error) {
+      toast.error('فشل تحديث العلامة المائية');
     }
   };
 
@@ -321,26 +338,49 @@ const SubjectDetail = () => {
               <>
                 <div className="admin-card-header">
                   <h2 className="admin-card-title">إدارة ملفات PDF</h2>
-                  <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                     {canUploadPDF && (
-                      <div style={{ position: 'relative' }}>
-                        <input
-                          type="file"
-                          multiple
-                          accept=".pdf"
-                          onChange={handleUploadPDFs}
-                          disabled={uploading}
-                          style={{ 
-                            position: 'absolute', 
-                            inset: 0, 
-                            opacity: 0, 
-                            cursor: 'pointer',
-                            zIndex: 2
-                          }}
-                        />
-                        <button className="admin-btn admin-btn-primary" disabled={uploading}>
-                          <FiUpload /> {uploading ? 'جاري الرفع...' : 'رفع ملفات PDF'}
-                        </button>
+                      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        <label style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.5rem', 
+                          cursor: 'pointer',
+                          fontSize: '0.9rem',
+                          color: 'var(--admin-text)',
+                          background: '#f8fafc',
+                          padding: '0.5rem 1rem',
+                          borderRadius: '8px',
+                          border: '1px solid var(--admin-border)',
+                          userSelect: 'none'
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={hasWatermark}
+                            onChange={(e) => setHasWatermark(e.target.checked)}
+                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                          />
+                          <span>تطبيق علامة مائية</span>
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            type="file"
+                            multiple
+                            accept=".pdf"
+                            onChange={handleUploadPDFs}
+                            disabled={uploading}
+                            style={{ 
+                              position: 'absolute', 
+                              inset: 0, 
+                              opacity: 0, 
+                              cursor: 'pointer',
+                              zIndex: 2
+                            }}
+                          />
+                          <button className="admin-btn admin-btn-primary" disabled={uploading}>
+                            <FiUpload /> {uploading ? 'جاري الرفع...' : 'رفع ملفات PDF'}
+                          </button>
+                        </div>
                       </div>
                     )}
                     {canDeletePDF && subject.pdfs?.length > 0 && (
@@ -363,6 +403,7 @@ const SubjectDetail = () => {
                           <th>اسم الملف</th>
                           <th>الحجم</th>
                           <th>التحميلات</th>
+                          <th>العلامة المائية</th>
                           <th>الإجراءات</th>
                         </tr>
                       </thead>
@@ -384,7 +425,7 @@ const SubjectDetail = () => {
                                   <FiFileText />
                                 </div>
                                 <a 
-                                  href={getFileUrl(pdf.file_url)} 
+                                  href={getFileUrl(pdf.file_url, pdf.has_watermark)} 
                                   target="_blank" 
                                   rel="noopener noreferrer"
                                   style={{ color: '#4f46e5', textDecoration: 'none', fontWeight: '600' }}
@@ -395,6 +436,30 @@ const SubjectDetail = () => {
                             </td>
                             <td>{(pdf.file_size / (1024 * 1024)).toFixed(2)} MB</td>
                             <td>{pdf.downloads_count} تحميل</td>
+                            <td>
+                              <label style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '0.5rem', 
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                                color: pdf.has_watermark ? '#059669' : '#64748b',
+                                background: pdf.has_watermark ? '#ecfdf5' : '#f8fafc',
+                                padding: '0.3rem 0.6rem',
+                                borderRadius: '6px',
+                                border: `1px solid ${pdf.has_watermark ? '#d1fae5' : '#e2e8f0'}`,
+                                width: 'fit-content',
+                                userSelect: 'none'
+                              }}>
+                                <input
+                                  type="checkbox"
+                                  checked={pdf.has_watermark}
+                                  onChange={() => handleToggleWatermark(pdf.id, pdf.has_watermark)}
+                                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                                />
+                                <span>{pdf.has_watermark ? 'مفعلة' : 'معطلة'}</span>
+                              </label>
+                            </td>
                             <td>
                               {canDeletePDF && (
                                 <button

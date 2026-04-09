@@ -17,6 +17,9 @@ const SubjectDetail = () => {
   const [rating, setRating] = useState(0);
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState('');
+  const [pdfHasWatermark, setPdfHasWatermark] = useState(false);
 
   const fetchSubject = useCallback(async () => {
     try {
@@ -77,7 +80,12 @@ const SubjectDetail = () => {
     try {
       const response = await downloadPDF(id, pdfId);
       if (response.data.success) {
-        window.open(response.data.data.full_url, '_blank');
+        // Always open in modal for secure view with watermark support
+        const url = response.data.data.full_url;
+        setPdfUrl(url);
+        setPdfHasWatermark(response.data.data.has_watermark || false);
+        setShowPdfModal(true);
+        
         toast.success(response.data.message);
         fetchSubject();
       }
@@ -452,6 +460,96 @@ const SubjectDetail = () => {
               <button className="nav-btn next-btn" onClick={handleNextImage}>
                 <FiChevronLeft size={30} />
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Secure Viewer Modal */}
+      {showPdfModal && (
+        <div className="student-modal-overlay" onClick={() => setShowPdfModal(false)}>
+          <div className="pdf-viewer-container" onClick={e => e.stopPropagation()} style={{
+            width: '90%',
+            height: '90%',
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            position: 'relative',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            <div className="pdf-viewer-header" style={{
+              padding: '1rem',
+              borderBottom: '1px solid #eee',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#f8f9fa'
+            }}>
+              <h3 style={{ margin: 0 }}>عرض الملف الآمن</h3>
+              <button onClick={() => setShowPdfModal(false)} style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#666'
+              }}>
+                <FiX size={24} />
+              </button>
+            </div>
+            <div className="pdf-viewer-body" style={{ flex: 1, position: 'relative' }}>
+              <iframe 
+                src={`${pdfUrl}#toolbar=0`} 
+                title="Secure PDF Viewer"
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                onLoad={() => setLoading(false)}
+              />
+              
+              {/* Dynamic Watermark Overlay (Works on all pages of PDF as it stays fixed on top) */}
+              {pdfHasWatermark && (
+                <div className="pdf-secure-overlay" style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  pointerEvents: 'none',
+                  zIndex: 20,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden'
+                }}>
+                  {/* Repeated overlay items */}
+                  {Array.from({ length: 20 }).map((_, i) => (
+                    <div key={i} style={{
+                      display: 'flex',
+                      justifyContent: 'space-around',
+                      opacity: 0.15,
+                      padding: '2rem 0',
+                      transform: 'rotate(-25deg)',
+                      fontSize: '1.2rem',
+                      fontWeight: 'bold',
+                      whiteSpace: 'nowrap',
+                      color: '#000',
+                      userSelect: 'none'
+                    }}>
+                      {Array.from({ length: 5 }).map((_, j) => (
+                        <span key={j} style={{ margin: '0 2rem' }}>Tawal Academy Secure View</span>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Overlay to prevent right-click/selection if possible inside iframe */}
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none',
+                zIndex: 30
+              }}></div>
             </div>
           </div>
         </div>

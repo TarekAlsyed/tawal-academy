@@ -195,6 +195,21 @@ const Students = () => {
     }
   };
 
+  const handleUnblockEmail = async (email) => {
+    if (!email) return;
+    
+    try {
+      const response = await api.post(API_ENDPOINTS.ADMIN_UNBLOCK_EMAIL, { email });
+
+      if (response.data.success) {
+        toast.success('تم إلغاء حظر الإيميل بنجاح');
+        fetchStudents();
+      }
+    } catch (error) {
+      toast.error('فشل إلغاء حظر الإيميل');
+    }
+  };
+
   const handleResetDevice = async (studentId) => {
     if (!window.confirm('هل أنت متأكد من إعادة تعيين الجهاز لهذا الطالب؟ سيتمكن الطالب من الدخول من أي جهاز جديد لمرة واحدة.')) return;
     
@@ -413,7 +428,25 @@ const Students = () => {
                           {student.status === 'active' ? <FiSlash /> : <FiCheck />}
                         </button>
                         
-                        {student.device_id && (
+                        {student.is_email_blocked && (
+                          <button
+                            className="admin-btn"
+                            onClick={() => handleUnblockEmail(student.email)}
+                            title="فك حظر الإيميل"
+                            style={{ 
+                              flex: 1, 
+                              justifyContent: 'center', 
+                              background: 'rgba(59, 130, 246, 0.1)', 
+                              color: '#3b82f6', 
+                              fontSize: '0.875rem', 
+                              padding: '0.5rem' 
+                            }}
+                          >
+                            <FiMail />
+                          </button>
+                        )}
+
+                        {(student.device_id || student.is_device_blocked) && (
                           <button
                             className="admin-btn"
                             onClick={() => handleUnblockDevice(student.device_id)}
@@ -427,7 +460,7 @@ const Students = () => {
                         <button
                           className="admin-btn"
                           onClick={() => handleResetDevice(student.id)}
-                          title="إعادة تعيين الجهاز"
+                          title="تصفير الجهاز"
                           style={{ flex: 1, justifyContent: 'center', background: 'var(--admin-primary-light)', color: 'var(--admin-primary)', fontSize: '0.875rem', padding: '0.5rem' }}
                         >
                           <FiSmartphone />

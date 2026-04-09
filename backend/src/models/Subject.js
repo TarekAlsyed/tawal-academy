@@ -350,12 +350,12 @@ class Subject {
   }
 
   // إضافة PDF
-  static async addPDF(subjectId, title, fileUrl, fileSize) {
+  static async addPDF(subjectId, title, fileUrl, fileSize, hasWatermark = true) {
     const result = await pool.query(
-      `INSERT INTO pdfs (subject_id, title, file_url, file_size)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO pdfs (subject_id, title, file_url, file_size, has_watermark)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [subjectId, title, fileUrl, fileSize]
+      [subjectId, title, fileUrl, fileSize, hasWatermark]
     );
     return result.rows[0];
   }
@@ -490,6 +490,15 @@ class Subject {
       'UPDATE pdfs SET downloads_count = downloads_count + 1 WHERE id = $1',
       [pdfId]
     );
+  }
+
+  // تحديث حالة العلامة المائية لملف PDF
+  static async updatePDFWatermark(pdfId, hasWatermark) {
+    const result = await pool.query(
+      'UPDATE pdfs SET has_watermark = $1 WHERE id = $2 RETURNING *',
+      [hasWatermark, pdfId]
+    );
+    return result.rows[0];
   }
 
   // تسجيل مشاهدة صورة

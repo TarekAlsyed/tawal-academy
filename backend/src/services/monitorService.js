@@ -11,28 +11,45 @@ class MonitorService {
     this.securityInterval = null;
     this.healingInterval = null;
     this.recoveryInterval = null;
+    this.lastActivity = Date.now();
+    this.IDLE_THRESHOLD = 30 * 60 * 1000; // 30 دقيقة من الخمول توقف المراقبة (تسمح لـ Neon بالنوم)
+  }
+
+  // تسجيل أي نشاط على المنصة
+  recordActivity() {
+    this.lastActivity = Date.now();
+  }
+
+  // التحقق مما إذا كانت المنصة في حالة خمول
+  isIdle() {
+    return (Date.now() - this.lastActivity) > this.IDLE_THRESHOLD;
   }
 
   start() {
-    console.log('🚀 بدء خدمة المراقبة والأمان (24/7)...');
+    console.log('🚀 بدء خدمة المراقبة الذكية (تتوقف عند الخمول لتوفير Neon CU-hrs)...');
     
-    // 1. مراقبة أخطاء المنصة كل 5 دقائق
-    this.monitoringInterval = setInterval(() => this.checkPlatformHealth(), 5 * 60 * 1000);
+    // 1. مراقبة أخطاء المنصة كل 5 دقائق (فقط عند وجود نشاط)
+    this.monitoringInterval = setInterval(() => {
+      if (!this.isIdle()) this.checkPlatformHealth();
+    }, 5 * 60 * 1000);
     
-    // 2. فحص أمني كل ساعة
-    this.securityInterval = setInterval(() => this.runSecurityScan(), 60 * 60 * 1000);
+    // 2. فحص أمني كل ساعة (فقط عند وجود نشاط)
+    this.securityInterval = setInterval(() => {
+      if (!this.isIdle()) this.runSecurityScan();
+    }, 60 * 60 * 1000);
 
-    // 3. فحص وإصلاح نظام الصور كل 30 دقيقة (Healing System)
-    this.healingInterval = setInterval(() => imageAutoSaveService.healFileSystem(), 30 * 60 * 1000);
+    // 3. فحص وإصلاح نظام الصور كل 30 دقيقة (فقط عند وجود نشاط)
+    this.healingInterval = setInterval(() => {
+      if (!this.isIdle()) imageAutoSaveService.healFileSystem();
+    }, 30 * 60 * 1000);
     
-    // 4. فحص استرداد الصور من Cloudinary كل ساعة
-    this.recoveryInterval = setInterval(() => ImageRecoveryMonitor.checkAllImages(10), 60 * 60 * 1000);
+    // 4. فحص استرداد الصور من Cloudinary كل ساعة (فقط عند وجود نشاط)
+    this.recoveryInterval = setInterval(() => {
+      if (!this.isIdle()) ImageRecoveryMonitor.checkAllImages(10);
+    }, 60 * 60 * 1000);
 
-    // تشغيل الفحوصات فوراً
+    // تشغيل الفحوصات فوراً عند التشغيل
     this.checkPlatformHealth();
-    this.runSecurityScan();
-    imageAutoSaveService.healFileSystem();
-    ImageRecoveryMonitor.checkAllImages(5);
   }
 
   async checkPlatformHealth() {

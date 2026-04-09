@@ -88,7 +88,13 @@ const upgradeSecuritySchema = async () => {
       await client.query(`ALTER TABLE student_violations ADD COLUMN IF NOT EXISTS ${col} ${type}`);
     }
     console.log('✅ Ensured student_violations table is complete');
-    console.log('✅ Ensured student_violations table exists');
+
+    // 6. Add has_watermark to pdfs
+    await client.query(`
+      ALTER TABLE pdfs 
+      ADD COLUMN IF NOT EXISTS has_watermark BOOLEAN DEFAULT TRUE
+    `);
+    console.log('✅ Added has_watermark column to pdfs table');
 
     await client.query('COMMIT');
     console.log('✨ Security Schema Upgrade Completed Successfully!');

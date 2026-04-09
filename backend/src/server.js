@@ -46,6 +46,16 @@ app.use(cookieParser());
 // 2. Apply Advanced Security Configuration (WAF, Logging, Throttling, etc.)
 const { logger, loginLimiter } = setupSecurity(app);
 
+// Update Monitor Activity on each request (except for internal health checks)
+app.use((req, res, next) => {
+  if (monitorService && typeof monitorService.recordActivity === 'function') {
+    if (!req.path.includes('/health')) {
+      monitorService.recordActivity();
+    }
+  }
+  next();
+});
+
 // ============================================
 // 0. IMMEDIATE HEALTH CHECK (For Cloud Providers)
 // ============================================

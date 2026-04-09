@@ -236,33 +236,42 @@ exports.downloadPDF = async (req, res, next) => {
         host = 'tawal-academy-backend.fly.dev';
     }
 
-    const fileUrl = pdf.rows[0].file_url;
+    const pdfData = pdf.rows[0];
+    const fileUrl = pdfData.file_url;
+    const hasWatermark = pdfData.has_watermark;
     
-    // If it's already a full URL (like Cloudinary), inject watermark and return
+    // If it's already a full URL (like Cloudinary), inject watermark if enabled and return
     if (fileUrl.startsWith('http') || fileUrl.includes('res.cloudinary.com')) {
       let finalUrl = fileUrl;
+      const isPDF = fileUrl.toLowerCase().includes('.pdf');
       
-      // Inject Cloudinary dynamic watermark if it's a Cloudinary URL
+      // Inject Cloudinary dynamic watermark if it's a Cloudinary URL and watermark is enabled
       if (finalUrl.includes('res.cloudinary.com') && !finalUrl.includes('/admin/')) {
-        // High visibility: o_40 (opacity), co_black, bo_3px_solid_white (outline)
-        // Adding fl_attachment to suggest it's protected and adding print-specific optimization if possible
-        const watermarkTransformation = 'l_text:Arial_120_bold_stroke:Tawal%20Academy,g_center,o_40,a_-35,fl_tiled,co_black,bo_3px_solid_white';
-        
-        if (finalUrl.includes('/upload/')) {
-          const parts = finalUrl.split('/upload/');
-          const versionPart = parts[1].split('/');
+        if (hasWatermark && isPDF && !finalUrl.includes('/raw/upload/')) {
+          // Standard and stable watermark transformation
+          // Use a more robust transformation format
+          const watermark = 'l_text:Arial_60_bold:Tawal%20Academy,co_black,o_20/fl_layer_apply,g_center,a_-45/pg_all';
           
-          if (versionPart[0].startsWith('v') && !isNaN(versionPart[0].substring(1))) {
-            finalUrl = `${parts[0]}/upload/${watermarkTransformation}/${parts[1]}`;
-          } else {
-            finalUrl = `${parts[0]}/upload/${watermarkTransformation},${parts[1]}`;
+          if (finalUrl.includes('/upload/')) {
+            const parts = finalUrl.split('/upload/');
+            const versionPart = parts[1].split('/');
+            
+            // Check if there is a version part (starts with 'v' followed by numbers)
+            if (versionPart[0].startsWith('v') && !isNaN(versionPart[0].substring(1))) {
+              finalUrl = `${parts[0]}/upload/${watermark}/${parts[1]}`;
+            } else {
+              finalUrl = `${parts[0]}/upload/${watermark}/${parts[1]}`;
+            }
           }
           
-          // Force high quality for printing if it's a PDF
-          if (finalUrl.endsWith('.pdf')) {
-            // fl_attachment: Ensures browser treats it as a downloadable/printable file
-            // dpr_2.0: Higher resolution for print
-            finalUrl = finalUrl.replace('/upload/', '/upload/q_auto:best,dn_300,dpr_2.0/');
+          // Ensure .pdf extension is preserved at the very end
+          if (!finalUrl.toLowerCase().endsWith('.pdf')) {
+            if (finalUrl.includes('?')) {
+              const [urlPart, queryPart] = finalUrl.split('?');
+              finalUrl = `${urlPart}.pdf?${queryPart}`;
+            } else {
+              finalUrl = `${finalUrl}.pdf`;
+            }
           }
         }
       }
@@ -272,7 +281,8 @@ exports.downloadPDF = async (req, res, next) => {
         message: pointsAdded ? 'تم إضافة 5 نقاط لرصيدك' : 'تم تحميل الملف',
         data: {
           url: fileUrl,
-          full_url: finalUrl
+          full_url: finalUrl,
+          has_watermark: hasWatermark
         }
       });
     }
@@ -284,7 +294,8 @@ exports.downloadPDF = async (req, res, next) => {
       message: pointsAdded ? 'تم إضافة 5 نقاط لرصيدك' : 'تم تحميل الملف',
       data: {
         url: fileUrl,
-        full_url: `${protocol}://${host}${cleanFileUrl}`
+        full_url: `${protocol}://${host}${cleanFileUrl}`,
+        has_watermark: hasWatermark
       }
     });
   } catch (error) {

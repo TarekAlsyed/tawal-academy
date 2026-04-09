@@ -130,6 +130,7 @@ router.post('/subjects/:id/pdfs', adminAuth, (req, res, next) => {
 }, uploadToCloudinary, checkPermission('subjects', 'upload_pdf'), adminSubjectController.addPDFs);
 
 router.delete('/subjects/:subjectId/pdfs/:pdfId', adminAuth, checkPermission('subjects', 'delete_pdf'), adminSubjectController.deletePDF);
+router.put('/subjects/:subjectId/pdfs/:pdfId/watermark', adminAuth, checkPermission('subjects', 'upload_pdf'), adminSubjectController.updatePDFWatermark);
 
 router.post('/subjects/:id/images', adminAuth, (req, res, next) => {
   upload.array('images', 50)(req, res, (err) => {

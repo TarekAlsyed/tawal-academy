@@ -111,7 +111,10 @@ exports.getSubjectById = async (req, res, next) => {
 exports.addPDFs = async (req, res, next) => {
   try {
     const { id } = req.params;
-    console.log(`[UPLOAD DEBUG] Starting PDF upload for subject ${id}. Content-Length: ${req.get('Content-Length') || 'Unknown'}`);
+    const { has_watermark } = req.body;
+    const shouldWatermark = has_watermark === 'true' || has_watermark === true;
+    
+    console.log(`[UPLOAD DEBUG] Starting PDF upload for subject ${id}. has_watermark: ${shouldWatermark}`);
     
     // Handle both upload.array and upload.fields
     let files = [];
@@ -146,7 +149,7 @@ exports.addPDFs = async (req, res, next) => {
     const created = [];
     try {
       for (const pdf of pdfs) {
-        const result = await Subject.addPDF(id, pdf.name, pdf.url, pdf.size);
+        const result = await Subject.addPDF(id, pdf.name, pdf.url, pdf.size, shouldWatermark);
         created.push(result);
       }
       
@@ -298,6 +301,28 @@ exports.deletePDF = async (req, res, next) => {
     const deleted = await Subject.deletePDF(pdfId);
     await Admin.logActivity(req.admin.id, 'delete_pdf', { pdfId }, req.ip);
     res.json({ success: true, message: 'تم حذف ملف PDF بنجاح', data: { file: deleted } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updatePDFWatermark = async (req, res, next) => {
+  try {
+    const { pdfId } = req.params;
+    const { has_watermark } = req.body;
+    
+    if (has_watermark === undefined) {
+      return res.status(400).json({ success: false, message: 'has_watermark مطلوب' });
+    }
+
+    const updated = await Subject.updatePDFWatermark(pdfId, has_watermark);
+    
+    if (!updated) {
+      return res.status(404).json({ success: false, message: 'الملف غير موجود' });
+    }
+
+    await Admin.logActivity(req.admin.id, 'update_pdf_watermark', { pdfId, has_watermark }, req.ip);
+    res.json({ success: true, message: 'تم تحديث حالة العلامة المائية بنجاح', data: { pdf: updated } });
   } catch (error) {
     next(error);
   }

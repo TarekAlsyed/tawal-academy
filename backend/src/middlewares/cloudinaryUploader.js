@@ -80,10 +80,11 @@ const uploadToCloudinary = async (req, res, next) => {
                     {
                         folder: folder,
                         public_id: publicId,
-                        resource_type: isPDF ? 'auto' : 'image',
+                        resource_type: isPDF ? 'image' : 'auto', // PDF must be 'image' to support overlays
+                        format: isPDF ? 'pdf' : undefined, // Force 'pdf' format for PDF files
                         access_mode: 'public',
-                        timeout: 120000, // 2 minutes timeout for server-to-server upload
-                        transformation: isPDF ? undefined : [
+                        timeout: 120000,
+                        transformation: isPDF ? [] : [
                             { width: 1200, crop: 'limit' },
                             { quality: 'auto' },
                             { fetch_format: 'auto' }

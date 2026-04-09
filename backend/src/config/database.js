@@ -7,7 +7,11 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL.includes('neon.tech') ? { rejectUnauthorized: false } : false
+  ssl: process.env.DATABASE_URL.includes('neon.tech') ? { rejectUnauthorized: false } : false,
+  // 🕒 إعدادات توفير الطاقة (Neon Auto-suspend support)
+  max: 10, // تقليل الحد الأقصى للاتصالات لتوفير الموارد
+  idleTimeoutMillis: 30000, // إغلاق الاتصالات غير النشطة بعد 30 ثانية (يسمح لـ Neon بالنوم)
+  connectionTimeoutMillis: 2000, // وقت انتظار قصير للاتصال الجديد
 });
 
 pool.on('connect', () => {
@@ -18,21 +22,23 @@ pool.on('error', (err) => {
   console.error('❌ خطأ مفاجئ في قاعدة البيانات:', err);
 });
 
-// Test connection
+// Test connection (Disabled by default to save Neon CU-hrs on restarts)
 const testConnection = async () => {
-  if (!process.env.DATABASE_URL) {
-    console.error('❌ فشل اختبار الاتصال: DATABASE_URL غير موجود');
-    return;
-  }
-  try {
-    const client = await pool.connect();
-    console.log('✅ تم اختبار الاتصال بقاعدة البيانات بنجاح');
-    client.release();
-  } catch (err) {
-    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message);
+  if (process.env.NODE_ENV === 'development') {
+    if (!process.env.DATABASE_URL) {
+      console.error('❌ فشل اختبار الاتصال: DATABASE_URL غير موجود');
+      return;
+    }
+    try {
+      const client = await pool.connect();
+      console.log('✅ تم اختبار الاتصال بقاعدة البيانات بنجاح');
+      client.release();
+    } catch (err) {
+      console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message);
+    }
   }
 };
 
-testConnection();
+// testConnection(); // تم تعطيله لتوفير الموارد في Neon
 
 module.exports = pool;

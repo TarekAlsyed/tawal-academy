@@ -161,7 +161,7 @@ const DownloadAppPage = () => {
 
         {/* Download Button */}
         <a
-          href="https://www.mediafire.com/file/2sjxvlnoq7d7lde/Tawal+Academy.apk/file"
+          href="https://www.mediafire.com/file/koipk624xhscsp0/Tawal+Academy.apk/file"
           target="_blank"
           rel="noopener noreferrer"
           style={{

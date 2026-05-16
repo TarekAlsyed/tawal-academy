@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { FiUser, FiMail, FiPhone, FiAward, FiSlash, FiCheck, FiTrash2, FiSmartphone, FiUnlock, FiActivity, FiSearch, FiFilter, FiDownload, FiX } from 'react-icons/fi';
-import api, { adminGetStudentLogs } from '../../services/api';
+import { FiUser, FiMail, FiPhone, FiAward, FiSlash, FiCheck, FiTrash2, FiSmartphone, FiUnlock, FiActivity, FiSearch, FiFilter, FiDownload, FiX, FiAlertTriangle } from 'react-icons/fi';
+import api, { adminGetStudentLogs, adminDeleteAllStudents } from '../../services/api';
 import { API_ENDPOINTS } from '../../config/api';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { useAuth } from '../../context/AuthContext';
@@ -242,6 +242,38 @@ const Students = () => {
     }
   };
 
+  const handleDeleteAllStudents = async () => {
+    if (!isSuper) {
+      toast.error('عذراً، هذا الإجراء متاح فقط للمدير العام');
+      return;
+    }
+
+    const confirm1 = window.confirm('⚠️ تحذير خطير: هل أنت متأكد من حذف جميع الطلاب من المنصة؟');
+    if (!confirm1) return;
+
+    const confirm2 = window.confirm('سيتم حذف جميع محاولات الامتحانات، الدرجات، والنقاط لجميع الطلاب. لن يتم حظر إيميلاتهم، بل سيتم مسح حساباتهم فقط ليتمكنوا من التسجيل من جديد. هل تريد الاستمرار؟');
+    if (!confirm2) return;
+
+    const typedConfirm = window.prompt('يرجى كتابة كلمة "حذف" للتأكيد النهائي:');
+    if (typedConfirm !== 'حذف') {
+      toast.info('تم إلغاء عملية الحذف الجماعي');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await adminDeleteAllStudents();
+      if (response.data.success) {
+        toast.success(response.data.message);
+        fetchStudents();
+      }
+    } catch (error) {
+      toast.error('فشل حذف جميع الطلاب');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleExport = async () => {
     try {
       const response = await api.get(API_ENDPOINTS.ADMIN_STUDENTS_EXPORT, {
@@ -300,6 +332,15 @@ const Students = () => {
           <p>عرض وإدارة حسابات الطلبة</p>
         </div>
         <div className="admin-header-actions">
+          {isSuper && (
+            <button
+              className="admin-btn admin-btn-danger"
+              onClick={handleDeleteAllStudents}
+              style={{ background: 'var(--admin-danger)', color: 'white' }}
+            >
+              <FiTrash2 /> حذف جميع الطلاب
+            </button>
+          )}
           <button
             className="admin-btn admin-btn-primary"
             onClick={handleExport}
@@ -334,7 +375,8 @@ const Students = () => {
                 style={{ width: 'auto', minWidth: '150px' }}
               >
                 <option value="all">الكل</option>
-                <option value="active">نشط</option>
+                <option value="active">نشط (متصل)</option>
+                <option value="inactive">غير نشط</option>
                 <option value="blocked">محظور</option>
               </select>
             </div>
@@ -395,8 +437,9 @@ const Students = () => {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
                       <FiUser /> الحالة: 
-                      <span className={`status-badge ${student.status === 'active' ? 'success' : 'danger'}`}>
-                        {student.status === 'active' ? 'نشط' : 'محظور'}
+                      <span className={`status-badge ${student.status === 'active' ? 'success' : student.status === 'blocked' ? 'danger' : 'warning'}`}
+                            style={student.status === 'inactive' ? { background: 'var(--admin-bg-secondary)', color: 'var(--admin-text-muted)' } : {}}>
+                        {student.status === 'active' ? 'نشط (متصل)' : student.status === 'blocked' ? 'محظور' : 'غير نشط'}
                       </span>
                     </div>
                   </div>
@@ -418,14 +461,14 @@ const Students = () => {
                           style={{ 
                             flex: 1, 
                             justifyContent: 'center', 
-                            background: student.status === 'active' ? 'var(--admin-danger-light)' : 'var(--admin-success-light)', 
-                            color: student.status === 'active' ? 'var(--admin-danger)' : 'var(--admin-success)', 
+                            background: student.status !== 'blocked' ? 'var(--admin-danger-light)' : 'var(--admin-success-light)', 
+                            color: student.status !== 'blocked' ? 'var(--admin-danger)' : 'var(--admin-success)', 
                             fontSize: '0.875rem', 
                             padding: '0.5rem' 
                           }}
-                          title={student.status === 'active' ? 'حظر' : 'تفعيل'}
+                          title={student.status !== 'blocked' ? 'حظر' : 'تفعيل'}
                         >
-                          {student.status === 'active' ? <FiSlash /> : <FiCheck />}
+                          {student.status !== 'blocked' ? <FiSlash /> : <FiCheck />}
                         </button>
                         
                         {student.is_email_blocked && (

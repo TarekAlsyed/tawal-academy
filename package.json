@@ -4,6 +4,17 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@capacitor/android": "^8.3.3",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/browser": "^8.0.3",
+    "@capacitor/cli": "^8.3.3",
+    "@capacitor/core": "^8.3.3",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/keyboard": "^8.0.3",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
     "@testing-library/dom": "^10.4.1",
     "axios": "^1.14.0",
     "crypto-js": "^4.2.0",
@@ -20,6 +31,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:mobile": "cross-env CAPACITOR=true vite build",
+    "clean:mobile": "node -e \"const fs=require('fs');['sw.js','workbox-*.js','manifest.webmanifest'].forEach(f=>{try{require('child_process').execSync('del /q dist\\\\'+f,{stdio:'ignore'})}catch{}})\"",
+    "cap:sync": "npx cap sync android",
+    "cap:open": "npx cap open android",
+    "cap:run": "npx cap run android",
+    "mobile": "cross-env CAPACITOR=true vite build && npx cap sync android",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
     "test": "vitest"
@@ -47,9 +64,12 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^6.0.1",
+    "cross-env": "^10.1.0",
     "gh-pages": "^6.3.0",
     "jsdom": "^29.0.1",
+    "typescript": "^6.0.3",
     "vite": "^8.0.3",
+    "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.1.2"
   }
 }

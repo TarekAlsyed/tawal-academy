@@ -5,7 +5,10 @@ import 'react-toastify/dist/ReactToastify.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import api from './services/api';
 import Watermark from './components/Watermark';
-import { FiMoon, FiSun } from 'react-icons/fi';
+import OfflineIndicator from './components/OfflineIndicator';
+import AppOnlyGate from './components/AppOnlyGate';
+import { FiMoon, FiSun, FiWifiOff } from 'react-icons/fi';
+import { initializeNativeBridge, configureStatusBar, isNativePlatform } from './utils/nativeBridge';
 
 // Student Pages
 const StudentLogin = lazy(() => import('./pages/student/Login'));
@@ -44,17 +47,19 @@ const LoadingSpinner = () => (
     alignItems: 'center',
     height: '100vh',
     flexDirection: 'column',
-    gap: '20px'
+    gap: '24px',
+    background: 'var(--bg-primary, #0c0f1a)'
   }}>
-    <div className="spinner" style={{
-      width: '50px',
-      height: '50px',
-      border: '5px solid #f3f3f3',
-      borderTop: '5px solid #3498db',
+    <div style={{
+      width: '56px',
+      height: '56px',
+      border: '4px solid var(--border-color, rgba(99,102,241,0.2))',
+      borderTop: '4px solid #6366f1',
+      borderRight: '4px solid #818cf8',
       borderRadius: '50%',
-      animation: 'spin 1s linear infinite'
+      animation: 'spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite'
     }}></div>
-    <div style={{ fontSize: '1.2rem', color: '#2c3e50' }}>جاري التحميل...</div>
+    <div style={{ fontSize: '1.15rem', color: 'var(--text-secondary, #94a3b8)', fontWeight: '700', letterSpacing: '-0.01em' }}>جاري التحميل...</div>
     <style>{`
       @keyframes spin {
         0% { transform: rotate(0deg); }
@@ -66,45 +71,91 @@ const LoadingSpinner = () => (
 
 // مكون الحماية (نستخدمه لحماية الصفحات)
 const ProtectedRoute = ({ children, adminOnly = false, superAdminOnly = false }) => {
-  const { admin, isAuthenticated, isAdminAuthenticated, loading } = useAuth();
+  const { user, admin, isAuthenticated, isAdminAuthenticated, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return <div className="loading">جاري التحميل...</div>;
   }
 
+  // Prevent any data fetching or rendering if not authenticated and loading is finished
   if (adminOnly) {
-    if (!isAdminAuthenticated) return <Navigate to="/admin/login" />;
+    if (!isAdminAuthenticated) {
+      // If offline and we don't have a cached admin, show offline error
+      if (!navigator.onLine && !admin) {
+        return (
+          <div className="offline-error">
+            <FiWifiOff className="offline-error-icon" />
+            <p>أنت في وضع الأوفلاين ولا يوجد بيانات دخول مسجلة للمسؤول.</p>
+            <button className="btn-student btn-student-primary" onClick={() => window.location.reload()}>
+              إعادة المحاولة
+            </button>
+          </div>
+        );
+      }
+      return <Navigate to="/admin/login" state={{ from: location }} replace />;
+    }
     
-    // التحقق المزدوج من صلاحية المدير العام
     const isSuper = admin?.is_super_admin === true || admin?.isSuperAdmin === true;
-    if (superAdminOnly && !isSuper) return <Navigate to="/admin/dashboard" />;
+    if (superAdminOnly && !isSuper) return <Navigate to="/admin/dashboard" replace />;
     
     return children;
   }
 
-  return isAuthenticated ? children : <Navigate to="/login" />;
+  if (!isAuthenticated) {
+    // If offline and no cached user, show offline error
+    if (!navigator.onLine && !user) {
+      return (
+        <div className="offline-error">
+          <FiWifiOff className="offline-error-icon" />
+          <p>أنت في وضع الأوفلاين. يرجى الاتصال بالإنترنت لتسجيل الدخول للمرة الأولى.</p>
+          <button className="btn-student btn-student-primary" onClick={() => window.location.reload()}>
+            إعادة المحاولة
+          </button>
+        </div>
+      );
+    }
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
 };
 
 function AppContent() {
   const location = useLocation();
-  const [darkMode, setDarkMode] = React.useState(() => {
-    return localStorage.getItem('darkMode') === 'true';
+  // Light mode toggle — Dark is default, Light is opt-in
+  const [lightMode, setLightMode] = React.useState(() => {
+    return localStorage.getItem('themeMode') === 'light';
   });
 
+  // Initialize Capacitor native features on mount
   useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add('dark-mode');
-    } else {
-      document.body.classList.remove('dark-mode');
-    }
-    localStorage.setItem('darkMode', darkMode);
-  }, [darkMode]);
+    initializeNativeBridge();
+  }, []);
 
-  const toggleDarkMode = () => setDarkMode(!darkMode);
+  useEffect(() => {
+    // Add smooth transition class before toggling
+    document.body.style.transition = 'background-color 0.35s ease, color 0.35s ease';
+    if (lightMode) {
+      document.body.classList.add('light-mode');
+      document.body.classList.remove('dark-mode');
+    } else {
+      document.body.classList.remove('light-mode');
+      document.body.classList.add('dark-mode');
+    }
+    localStorage.setItem('themeMode', lightMode ? 'light' : 'dark');
+    // Sync Android status bar color with theme
+    configureStatusBar(!lightMode);
+  }, [lightMode]);
+
+  const toggleTheme = () => setLightMode(!lightMode);
 
   useEffect(() => {
     // Global Error Hunting System (Client-side)
     const reportError = (errorData) => {
+      // Don't try to report errors when offline
+      if (!navigator.onLine) return;
+      
       api.post('/monitoring/report-error', errorData)
         .catch(e => console.error('Failed to report global error:', e));
     };
@@ -208,6 +259,8 @@ function AppContent() {
         draggable
         pauseOnHover
       />
+      
+      <OfflineIndicator />
       
       <Suspense fallback={<LoadingSpinner />}>
         <Routes>
@@ -434,14 +487,15 @@ function AppContent() {
         </Routes>
       </Suspense>
       
-      {/* Dark Mode Toggle Button for Students */}
+      {/* Theme Toggle Button for Students */}
       {!location.pathname.includes('/admin') && (
         <button 
-          className="dark-mode-toggle" 
-          onClick={toggleDarkMode}
-          aria-label="Toggle Dark Mode"
+          className={`dark-mode-toggle ${lightMode ? 'light-active' : ''}`}
+          onClick={toggleTheme}
+          aria-label="Toggle Theme"
+          title={lightMode ? 'التبديل للوضع المظلم' : 'التبديل للوضع الفاتح'}
         >
-          {darkMode ? <FiSun size={28} /> : <FiMoon size={28} />}
+          {lightMode ? <FiMoon size={28} /> : <FiSun size={28} />}
         </button>
       )}
     </>
@@ -451,12 +505,14 @@ function AppContent() {
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <div className="app-container">
-          <AppContent />
-          <Watermark />
-        </div>
-      </AuthProvider>
+      <AppOnlyGate>
+        <AuthProvider>
+          <div className="app-container">
+            <AppContent />
+            {!isNativePlatform() && <Watermark />}
+          </div>
+        </AuthProvider>
+      </AppOnlyGate>
     </Router>
   );
 }

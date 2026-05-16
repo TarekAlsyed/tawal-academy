@@ -1,46 +1,20 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://tawal-academy.alwaysdata.net/api';
 
+// Helper function to get Cloudinary PDF URL with potential watermark
+export const getCloudinaryPDFUrl = (fullUrl, addWatermark = false) => {
+  // In this robust version, we do NOT modify the URL string for Cloudinary
+  // to avoid transformation errors (White Screen).
+  // The watermark is handled by the frontend Secure Overlay in SubjectDetail.jsx
+  return fullUrl;
+};
+
 export const getFileUrl = (path, addWatermark = true) => {
   if (!path) return '';
   
   // 1. Handle full URLs (Cloudinary)
   if (path.startsWith('http') || path.includes('res.cloudinary.com')) {
     let fullUrl = path.startsWith('http') ? path : `https://${path}`;
-    
-    // Inject Cloudinary dynamic watermark if it's a Cloudinary URL and not an admin asset
-    // We only apply it to PDF files (either .pdf extension or /raw/upload/ path)
-    const isPDF = fullUrl.toLowerCase().includes('.pdf') || fullUrl.includes('/raw/upload/');
-    
-        if (addWatermark && isPDF && fullUrl.includes('res.cloudinary.com') && !fullUrl.includes('/admin/')) {
-      // Standard Cloudinary PDF Watermark: Arial 60 bold, centered, 20% opacity, all pages
-      // Improved robust transformation string
-      const watermark = 'l_text:Arial_60_bold:Tawal%20Academy,co_black,o_20/fl_layer_apply,g_center,a_-45/pg_all';
-      
-      if (fullUrl.includes('/upload/')) {
-        const parts = fullUrl.split('/upload/');
-        const versionPart = parts[1].split('/');
-        
-        // Inject watermark correctly before version or public ID
-        let transformedUrl;
-        if (versionPart[0].startsWith('v') && !isNaN(versionPart[0].substring(1))) {
-          transformedUrl = `${parts[0]}/upload/${watermark}/${parts[1]}`;
-        } else {
-          transformedUrl = `${parts[0]}/upload/${watermark}/${parts[1]}`;
-        }
-        
-        // Ensure .pdf extension is preserved to prevent white screen
-        if (!transformedUrl.toLowerCase().endsWith('.pdf')) {
-          if (transformedUrl.includes('?')) {
-            const [urlPart, queryPart] = transformedUrl.split('?');
-            transformedUrl = `${urlPart}.pdf?${queryPart}`;
-          } else {
-            transformedUrl = `${transformedUrl}.pdf`;
-          }
-        }
-        return transformedUrl;
-      }
-    }
-    return fullUrl;
+    return getCloudinaryPDFUrl(fullUrl, addWatermark);
   }
   
   // 2. Handle local paths (Backend uploads)

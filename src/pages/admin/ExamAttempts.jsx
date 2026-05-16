@@ -71,6 +71,132 @@ const ExamAttempts = () => {
 
   return (
     <AdminLayout>
+      <style>{`
+        @media print {
+          @page {
+            margin: 0 !important;
+          }
+          /* General Print Fixes */
+          html, body, #root, .admin-layout, .admin-main, .app-container {
+            height: auto !important; min-height: auto !important; overflow: visible !important;
+            margin: 0 !important; padding: 0 !important; background: white !important; width: 100% !important;
+            position: static !important;
+          }
+          .admin-sidebar, .admin-header, .admin-content > :not(.admin-modal-overlay), .admin-modal-footer, .admin-close-btn, .security-watermark-overlay, .dark-mode-toggle, .admin-table-container {
+            display: none !important;
+          }
+          
+          /* Modal Overrides */
+          .admin-modal-overlay {
+            position: static !important; display: block !important; background: transparent !important;
+            padding: 1.5cm !important; margin: 0 !important; backdrop-filter: none !important;
+            box-sizing: border-box !important;
+          }
+          .admin-modal {
+            display: block !important; position: static !important; width: 100% !important; max-width: 100% !important;
+            max-height: none !important; box-shadow: none !important; margin: 0 !important; padding: 0 !important;
+            border: none !important; animation: none !important; overflow: visible !important; background: white !important;
+          }
+          .admin-modal-body {
+            max-height: none !important; overflow: visible !important; padding: 0 !important; margin: 0 !important;
+          }
+          
+          /* Typography & Colors for Print */
+          body, p, span, div, h1, h2, h3, h4, h5, h6, label {
+            color: #000000 !important;
+            text-shadow: none !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          /* Force Question Cards Borders */
+          .print-question-card {
+            border: 2px solid #000000 !important;
+            border-radius: 8px !important;
+            margin-bottom: 2rem !important;
+            padding: 1.5rem !important;
+            page-break-inside: avoid;
+            break-inside: avoid;
+            background: #ffffff !important;
+          }
+          .print-answer-box {
+            border: 2px solid #000000 !important;
+            padding: 1.25rem !important;
+            border-radius: 6px !important;
+            background: transparent !important;
+          }
+          .print-answer-box.success {
+            border-color: #059669 !important;
+            border-width: 3px !important;
+          }
+          .print-answer-box.danger {
+            border-color: #dc2626 !important;
+            border-width: 3px !important;
+          }
+          .print-success-text {
+            color: #059669 !important;
+            font-weight: 900 !important;
+          }
+          .print-danger-text {
+            color: #dc2626 !important;
+            font-weight: 900 !important;
+          }
+          /* Option Choices styling */
+          .print-option-box {
+            border: 1px solid #94a3b8 !important;
+            background: transparent !important;
+          }
+          .print-option-box.success {
+            border: 2px solid #059669 !important;
+            background: #f0fdf4 !important;
+            color: #000 !important;
+          }
+          .print-option-box.danger {
+            border: 2px solid #dc2626 !important;
+            background: #fef2f2 !important;
+            color: #000 !important;
+          }
+          .print-option-box.success-outline {
+            border: 2px dashed #059669 !important;
+            background: transparent !important;
+          }
+          .print-option-letter {
+            border: 1px solid #000 !important;
+            background: transparent !important;
+            color: #000 !important;
+          }
+          
+          /* Print Watermark */
+          .print-only-watermark {
+            display: block !important;
+            position: fixed !important;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            pointer-events: none;
+            opacity: 0.1 !important;
+            overflow: hidden !important;
+          }
+        }
+        @media screen {
+          .print-only-watermark {
+            display: none !important;
+          }
+        }
+      `}</style>
+      
+      <div className="print-only-watermark" aria-hidden="true">
+        <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="wm" x="0" y="0" width="350" height="250" patternUnits="userSpaceOnUse">
+              <text x="40" y="120" fontSize="38" fontWeight="bold" fontFamily="sans-serif" fill="#000000" transform="rotate(-35 40 120)">
+                Tawal Academy
+              </text>
+            </pattern>
+          </defs>
+          <rect x="0" y="0" width="100%" height="100%" fill="url(#wm)" />
+        </svg>
+      </div>
+      
       <header className="admin-header">
         <div className="admin-header-title">
           <h1>نتائج ومحاولات الطلاب</h1>
@@ -273,16 +399,32 @@ const ExamAttempts = () => {
                       }
                       
                       const renderAnswerText = (answer) => {
-                        if (!answer) return 'لم يتم الإجابة';
-                        if (question.type === 'multiple' || question.type === 'true_false') {
-                          const optionText = options[answer.toLowerCase()];
-                          return optionText ? `${answer.toUpperCase()}: ${optionText}` : answer;
-                        }
+                        if (!answer && answer !== false) return 'لم يقم بالإجابة';
+                        if (String(answer) === 'true') return 'صحيح';
+                        if (String(answer) === 'false') return 'خطأ';
                         return answer;
                       };
 
+                      const hasOptions = (question.type === 'multiple' || question.type === 'true_false');
+                      let parsedOptions = {};
+                      if (hasOptions) {
+                        try {
+                          if (question.type === 'multiple') {
+                            parsedOptions = typeof question.options === 'string' ? JSON.parse(question.options || '{}') : (question.options || {});
+                          } else if (question.type === 'true_false') {
+                            if (question.options && Object.keys(question.options).length > 0) {
+                              parsedOptions = typeof question.options === 'string' ? JSON.parse(question.options) : question.options;
+                            } else {
+                              parsedOptions = { 'true': 'صحيح', 'false': 'خطأ' };
+                            }
+                          }
+                        } catch(e) {
+                          console.error("Error parsing options", e);
+                        }
+                      }
+
                       return (
-                        <div key={question.id} style={{ padding: '1.5rem', border: '1px solid var(--admin-border)', borderRadius: '12px', background: 'white' }}>
+                        <div key={question.id} className="print-question-card" style={{ padding: '1.5rem', border: '1px solid var(--admin-border)', borderRadius: '12px', background: 'white' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
                             <span style={{ fontWeight: 700, color: 'var(--admin-text-muted)' }}>سؤال {index + 1} ({question.type})</span>
                             {question.type !== 'essay' && (
@@ -294,21 +436,73 @@ const ExamAttempts = () => {
                           
                           <p style={{ fontWeight: 600, fontSize: '1.05rem', marginBottom: '1.25rem' }}>{question.question_text}</p>
                           
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-                            <div style={{ padding: '1rem', borderRadius: '8px', background: isCorrect ? 'var(--admin-success-light)' : 'var(--admin-danger-light)', border: `1px solid ${isCorrect ? 'var(--admin-success)' : 'var(--admin-danger)'}` }}>
-                              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.5rem', color: isCorrect ? 'var(--admin-success)' : 'var(--admin-danger)' }}>إجابة الطالب</label>
-                              <div style={{ fontWeight: 600 }}>
-                                {renderAnswerText(studentAnswer)}
+                          {hasOptions && Object.keys(parsedOptions).length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
+                              {Object.entries(parsedOptions).map(([key, value]) => {
+                                if (!value) return null;
+                                let normalizedStudentAnswer = String(studentAnswer).trim().toLowerCase();
+                                let normalizedCorrectAnswer = String(question.correct_answer).trim().toLowerCase();
+                                
+                                if (question.type === 'true_false') {
+                                  if (normalizedStudentAnswer === 'a') normalizedStudentAnswer = 'true';
+                                  if (normalizedStudentAnswer === 'b') normalizedStudentAnswer = 'false';
+                                  if (normalizedCorrectAnswer === 'a') normalizedCorrectAnswer = 'true';
+                                  if (normalizedCorrectAnswer === 'b') normalizedCorrectAnswer = 'false';
+                                }
+
+                                const isStudentChoice = normalizedStudentAnswer === String(key).trim().toLowerCase();
+                                const isCorrectChoice = normalizedCorrectAnswer === String(key).trim().toLowerCase();
+                                
+                                let boxClass = 'print-option-box';
+                                let borderStyle = '1px solid var(--admin-border)';
+                                let bgStyle = 'white';
+                                let icon = null;
+                                
+                                if (isStudentChoice && isCorrectChoice) {
+                                  boxClass += ' success';
+                                  borderStyle = '2px solid var(--admin-success)';
+                                  bgStyle = 'var(--admin-success-light)';
+                                  icon = '✅ إجابتك (صحيحة)';
+                                } else if (isStudentChoice && !isCorrectChoice) {
+                                  boxClass += ' danger';
+                                  borderStyle = '2px solid var(--admin-danger)';
+                                  bgStyle = 'var(--admin-danger-light)';
+                                  icon = '❌ إجابتك (خاطئة)';
+                                } else if (!isStudentChoice && isCorrectChoice) {
+                                  boxClass += ' success-outline';
+                                  borderStyle = '2px dashed var(--admin-success)';
+                                  bgStyle = 'white';
+                                  icon = '✅ الإجابة الصحيحة';
+                                }
+                                
+                                return (
+                                  <div key={key} className={boxClass} style={{ display: 'flex', alignItems: 'center', padding: '1rem', border: borderStyle, borderRadius: '8px', background: bgStyle }}>
+                                    <div className="print-option-letter" style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'var(--admin-bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', marginLeft: '1rem', border: '1px solid var(--admin-border)', color: 'var(--admin-text)' }}>
+                                      {key.toUpperCase()}
+                                    </div>
+                                    <div style={{ flex: 1, fontWeight: 600, color: 'var(--admin-text)' }}>{value}</div>
+                                    {icon && <div className={isCorrectChoice ? "print-success-text" : "print-danger-text"} style={{ fontWeight: 'bold', marginRight: '1rem', color: isCorrectChoice ? 'var(--admin-success)' : 'var(--admin-danger)' }}>{icon}</div>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                              <div className={`print-answer-box ${isCorrect ? 'success' : 'danger'}`} style={{ padding: '1rem', borderRadius: '8px', background: isCorrect ? 'var(--admin-success-light)' : 'var(--admin-danger-light)', border: `1px solid ${isCorrect ? 'var(--admin-success)' : 'var(--admin-danger)'}` }}>
+                                <label className={isCorrect ? 'print-success-text' : 'print-danger-text'} style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.5rem', color: isCorrect ? 'var(--admin-success)' : 'var(--admin-danger)' }}>إجابة الطالب</label>
+                                <div style={{ fontWeight: 600 }}>
+                                  {renderAnswerText(studentAnswer)}
+                                </div>
+                              </div>
+                              
+                              <div className="print-answer-box success" style={{ padding: '1rem', borderRadius: '8px', background: 'var(--admin-bg-primary)', border: '1px solid var(--admin-border)' }}>
+                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--admin-text-muted)' }}>الإجابة الصحيحة</label>
+                                <div className="print-success-text" style={{ fontWeight: 600, color: 'var(--admin-success)' }}>
+                                  {renderAnswerText(question.correct_answer)}
+                                </div>
                               </div>
                             </div>
-                            
-                            <div style={{ padding: '1rem', borderRadius: '8px', background: 'var(--admin-bg-primary)', border: '1px solid var(--admin-border)' }}>
-                              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--admin-text-muted)' }}>الإجابة الصحيحة</label>
-                              <div style={{ fontWeight: 600, color: 'var(--admin-success)' }}>
-                                {renderAnswerText(question.correct_answer)}
-                              </div>
-                            </div>
-                          </div>
+                          )}
                           
                           {question.explanation && (
                             <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--admin-primary-light)', borderRadius: '8px', fontSize: '0.9rem', color: 'var(--admin-primary)' }}>

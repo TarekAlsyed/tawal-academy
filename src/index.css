@@ -1,6 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap');
 @import url('./styles/COMPLETE-ADMIN-DESIGN.css');
 @import url('./styles/COMPLETE-STUDENT-DESIGN.css');
+@import url('./styles/LIGHT-MODE.css');
 
 * {
   margin: 0;
@@ -21,8 +22,20 @@ body {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
-  background-color: #f8f9fa;
-  color: #333;
+  background-color: #f0f4f8;
+  color: #0f172a;
+  /* Safe area for notched devices (Android/iOS) */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  /* Keyboard height CSS variable — set by nativeBridge.js */
+  --keyboard-height: 0px;
+}
+
+/* Adjust layout when soft keyboard is visible on mobile */
+body.keyboard-visible {
+  padding-bottom: var(--keyboard-height);
 }
 
 /* السماح بالتحديد في حقول الإدخال فقط */
@@ -35,7 +48,7 @@ input, textarea {
 
 /* منع الطباعة وتصوير الشاشة عبر المتصفح */
 @media print {
-  body {
+  .student-layout, .student-main, .student-app {
     display: none !important;
   }
   .security-watermark-overlay {
@@ -46,42 +59,50 @@ input, textarea {
 }
 
 .loading {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
-}
-
-.loading {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
   font-size: 1.5rem;
-  color: #667eea;
+  color: #6366f1;
+  font-weight: 700;
 }
 
+/* ═══ TOAST NOTIFICATIONS — Premium ═══ */
 .Toastify__toast {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  border-radius: 10px;
+  font-family: 'Tajawal', sans-serif;
+  border-radius: 14px;
   direction: rtl;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-weight: 600;
 }
 
 .Toastify__toast--success {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
 }
 
 .Toastify__toast--error {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
 }
 
-/* Dark Mode Support for Students */
+.Toastify__toast--warning {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.Toastify__toast--info {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+/* ═══ DARK MODE ═══ */
 body.dark-mode {
-  background-color: #0f172a;
+  background-color: #0c0f1a;
   color: #f1f5f9;
 }
 
 body.dark-mode .card-student {
-  background-color: #1e293b;
-  border-color: #334155;
+  background-color: #1a1f35;
+  border-color: #2a3050;
   color: #f1f5f9;
 }
 
@@ -90,78 +111,131 @@ body.dark-mode .student-text-secondary {
 }
 
 body.dark-mode .exam-header {
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-  border-bottom: 1px solid #334155;
+  background: linear-gradient(135deg, #1a1f35 0%, #0c0f1a 100%);
+  border-bottom: 1px solid #2a3050;
 }
 
 body.dark-mode .pdf-viewer-container {
-  background-color: #1e293b !important;
+  background-color: #1a1f35 !important;
 }
 
 body.dark-mode .pdf-viewer-header {
-  background-color: #0f172a !important;
-  border-bottom-color: #334155 !important;
+  background-color: #0c0f1a !important;
+  border-bottom-color: #2a3050 !important;
   color: white;
 }
 
-/* Dark Mode Toggle Button */
+body.dark-mode .student-header {
+  background: rgba(12, 15, 26, 0.85);
+  backdrop-filter: blur(20px);
+  border-bottom-color: #2a3050;
+}
+
+body.dark-mode .subject-card,
+body.dark-mode .question-card,
+body.dark-mode .question-card-item,
+body.dark-mode .sidebar-card,
+body.dark-mode .exam-premium-card,
+body.dark-mode .term-glass-card,
+body.dark-mode .intro-card,
+body.dark-mode .ask-section {
+  background-color: #1a1f35;
+  border-color: #2a3050;
+}
+
+body.dark-mode .student-bg-subtle,
+body.dark-mode .subject-tabs,
+body.dark-mode .student-tabs-buttons {
+  background-color: #12162a;
+}
+
+/* ═══ OFFLINE ERROR ═══ */
+.offline-error {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 2rem;
+  text-align: center;
+  background: linear-gradient(135deg, #fef2f2, #fff1f2);
+  color: #dc2626;
+  font-size: 1.25rem;
+  font-weight: bold;
+  gap: 1.5rem;
+}
+
+.offline-error-icon {
+  font-size: 4rem;
+  color: #ef4444;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ═══ DARK MODE TOGGLE ═══ */
 .dark-mode-toggle {
   position: fixed;
   bottom: 30px;
-  right: 30px; /* تم نقله لليمين ليكون أوضح وأسهل في الوصول */
-  width: 55px; /* زيادة الحجم قليلاً */
-  height: 55px;
-  border-radius: 50%;
-  background: #6366f1; /* لون أرجواني واضح */
+  right: 30px;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
   color: white;
-  border: 3px solid white; /* إضافة إطار أبيض ليبرز فوق أي خلفية */
+  border: 3px solid white;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
-  z-index: 2147483646; /* تحت العلامة المائية مباشرة وفوق كل شيء آخر */
+  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.35);
+  z-index: 2147483646;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .dark-mode-toggle:hover {
-  transform: scale(1.15) rotate(15deg);
-  background: #4f46e5;
+  transform: scale(1.12) rotate(15deg);
+  background: linear-gradient(135deg, #4f46e5, #4338ca);
+  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.45);
 }
 
 .dark-mode-toggle svg {
-  filter: drop-shadow(0 0 2px rgba(0,0,0,0.2));
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.3));
 }
 
-/* تحسين ظهور أيقونة التقويم والأسهم في جميع حقول التاريخ والوقت في المنصة */
+/* ═══ DATE/TIME PICKERS ═══ */
 input[type="datetime-local"]::-webkit-calendar-picker-indicator,
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
-  background-color: #667eea; /* لون بنفسجي واضح */
+  background-color: #6366f1;
   padding: 5px;
-  border-radius: 4px;
+  border-radius: 6px;
   filter: brightness(1.5) contrast(1.2);
   transition: all 0.2s ease;
 }
 
 input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
 input[type="date"]::-webkit-calendar-picker-indicator:hover {
-  background-color: #764ba2;
+  background-color: #4f46e5;
   transform: scale(1.1);
 }
 
-/* إظهار أسهم الزيادة والنقصان بشكل واضح في حقول الأرقام */
+/* Number spinners */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   opacity: 1 !important;
   cursor: pointer;
-  background: #f0f0f0;
-  border-left: 1px solid #ddd;
+  background: #f1f5f9;
+  border-left: 1px solid #e2e8f0;
   height: 100%;
 }
 
-/* ضمان وضوح جميع الأزرار في المنصة ومنع الشفافية الزائدة */
+/* ═══ BUTTON CLARITY ═══ */
 button, .admin-btn, .btn-student {
   opacity: 1 !important;
   backdrop-filter: none !important;
@@ -170,8 +244,39 @@ button, .admin-btn, .btn-student {
 }
 
 button:disabled, .admin-btn:disabled, .btn-student:disabled {
-  opacity: 0.6 !important;
+  opacity: 0.5 !important;
   cursor: not-allowed !important;
 }
 
+/* ═══ SCROLLBAR — Premium ═══ */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
 
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+body.dark-mode ::-webkit-scrollbar-track {
+  background: #0c0f1a;
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb {
+  background: #2a3050;
+}
+
+/* ═══ SELECTION HIGHLIGHT ═══ */
+::selection {
+  background: rgba(99, 102, 241, 0.15);
+  color: #4338ca;
+}

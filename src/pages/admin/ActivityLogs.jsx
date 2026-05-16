@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { FiActivity, FiUser, FiClock, FiMonitor } from 'react-icons/fi';
-import { adminGetActivityLogs } from '../../services/api';
+import { FiActivity, FiUser, FiClock, FiMonitor, FiTrash2, FiAlertCircle } from 'react-icons/fi';
+import { adminGetActivityLogs, adminDeleteAllActivityLogs } from '../../services/api';
 import AdminLayout from '../../components/admin/AdminLayout';
+import { useAuth } from '../../context/AuthContext';
 // import '../../styles/AdminPages.css'; // Commented out to use COMPLETE-ADMIN-DESIGN.css
 
 const ActivityLogs = () => {
+  const { admin } = useAuth();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [limit] = useState(50);
+
+  const isSuper = admin?.is_super_admin === true || admin?.is_super_admin === 'true';
 
   const ACTION_MAP = {
     'admin_login': 'تسجيل دخول مشرف',
@@ -38,7 +42,8 @@ const ActivityLogs = () => {
     'upload_pdf': 'رفع ملف PDF',
     'delete_pdf': 'حذف ملف PDF',
     'upload_image': 'رفع صورة',
-    'delete_image': 'حذف صورة'
+    'delete_image': 'حذف صورة',
+    'update_pdf_watermark': 'تعديل علامة مائية'
   };
 
   const KEY_MAP = {
@@ -57,7 +62,8 @@ const ActivityLogs = () => {
     'reason': 'السبب',
     'duration': 'المدة',
     'question': 'السؤال',
-    'answer': 'الإجابة'
+    'answer': 'الإجابة',
+    'has_watermark': 'العلامة المائية'
   };
 
   const translateKey = (key) => {
@@ -68,24 +74,49 @@ const ActivityLogs = () => {
     return ACTION_MAP[action] || action;
   };
 
-  useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        setLoading(true);
-        const response = await adminGetActivityLogs({ page, limit });
-        if (response.data.success) {
-          setLogs(response.data.data.logs);
-        }
-      } catch (error) {
-        console.error('Error fetching logs:', error);
-        toast.error('فشل تحميل سجل النشاط');
-      } finally {
-        setLoading(false);
+  const fetchLogs = async () => {
+    try {
+      setLoading(true);
+      const response = await adminGetActivityLogs({ page, limit });
+      if (response.data.success) {
+        setLogs(response.data.data.logs);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching logs:', error);
+      toast.error('فشل تحميل سجل النشاط');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchLogs();
   }, [page, limit]);
+
+  const handleDeleteAll = async () => {
+    if (!isSuper) {
+      toast.error('عذراً، هذا الإجراء متاح فقط للمدير العام');
+      return;
+    }
+
+    if (!window.confirm('⚠️ تحذير: هل أنت متأكد من حذف جميع سجلات النشاط نهائياً؟ لا يمكن التراجع عن هذا الإجراء.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await adminDeleteAllActivityLogs();
+      if (response.data.success) {
+        toast.success(response.data.message);
+        setPage(1);
+        fetchLogs();
+      }
+    } catch (error) {
+      toast.error('فشل حذف سجل النشاط');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString('ar-EG');
@@ -170,6 +201,17 @@ const ActivityLogs = () => {
         <div className="admin-header-title">
           <h1><FiActivity /> سجل النشاط</h1>
           <p>تتبع نشاطات المشرفين والطلاب في النظام</p>
+        </div>
+        <div className="admin-header-actions">
+          {isSuper && (
+            <button 
+              className="admin-btn admin-btn-danger" 
+              onClick={handleDeleteAll}
+              style={{ background: 'var(--admin-danger)', color: 'white' }}
+            >
+              <FiTrash2 /> حذف السجل بالكامل
+            </button>
+          )}
         </div>
       </header>
 

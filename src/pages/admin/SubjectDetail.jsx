@@ -16,6 +16,7 @@ const SubjectDetail = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pdfs');
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [hasWatermark, setHasWatermark] = useState(true);
 
   // التحقق من الصلاحيات التفصيلية (دعم القيم المنطقية والنصية للأمان)
@@ -72,8 +73,14 @@ const SubjectDetail = () => {
     formData.append('has_watermark', hasWatermark);
 
     setUploading(true);
+    setUploadProgress(0);
     try {
-      await api.post(API_ENDPOINTS.ADMIN_UPLOAD_PDFS(id), formData);
+      await api.post(API_ENDPOINTS.ADMIN_UPLOAD_PDFS(id), formData, {
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+        }
+      });
       toast.success(`تم رفع ${files.length} ملف بنجاح`);
       fetchSubject();
     } catch (error) {
@@ -102,8 +109,14 @@ const SubjectDetail = () => {
     }
 
     setUploading(true);
+    setUploadProgress(0);
     try {
-      await api.post(API_ENDPOINTS.ADMIN_UPLOAD_IMAGES(id), formData);
+      await api.post(API_ENDPOINTS.ADMIN_UPLOAD_IMAGES(id), formData, {
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+        }
+      });
       toast.success(`تم رفع ${files.length} صورة بنجاح`);
       fetchSubject();
     } catch (error) {
@@ -378,7 +391,7 @@ const SubjectDetail = () => {
                             }}
                           />
                           <button className="admin-btn admin-btn-primary" disabled={uploading}>
-                            <FiUpload /> {uploading ? 'جاري الرفع...' : 'رفع ملفات PDF'}
+                            <FiUpload /> {uploading ? (uploadProgress === 100 ? 'جاري المعالجة النهائية...' : `جاري الرفع (${uploadProgress}%)`) : 'رفع ملفات PDF'}
                           </button>
                         </div>
                       </div>
@@ -509,7 +522,7 @@ const SubjectDetail = () => {
                           }}
                         />
                         <button className="admin-btn admin-btn-primary" disabled={uploading}>
-                          <FiUpload /> {uploading ? 'جاري الرفع...' : 'رفع صور'}
+                          <FiUpload /> {uploading ? (uploadProgress === 100 ? 'جاري المعالجة النهائية...' : `جاري الرفع (${uploadProgress}%)`) : 'رفع صور'}
                         </button>
                       </div>
                     )}

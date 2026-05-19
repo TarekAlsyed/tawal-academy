@@ -1,0 +1,601 @@
+/* ════════════════════════════════════════════════════════════════
+   ☀️ LIGHT MODE — CHEERFUL STUDY THEME v2.2.0
+   الوضع الفاتح - ألوان مبهجة للمذاكرة
+   ════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────
+   MASTER OVERRIDE: CSS Variables on body.light-mode
+   These MUST cascade to all child elements
+   ───────────────────────────────────────────── */
+body.light-mode {
+  --student-primary: #2563eb !important;
+  --student-primary-light: #3b82f6 !important;
+  --student-primary-dark: #1d4ed8 !important;
+  --student-primary-darker: #1e40af !important;
+  --student-secondary: #0891b2 !important;
+  --student-accent: #d97706 !important;
+  --student-accent-dark: #b45309 !important;
+  --student-rose: #e11d48 !important;
+  --student-violet: #7c3aed !important;
+  --student-emerald: #059669 !important;
+  --student-cyan: #0891b2 !important;
+
+  --student-bg-app: #f0f7ff !important;
+  --student-bg-surface: #ffffff !important;
+  --student-bg-subtle: #f1f5f9 !important;
+  --student-bg-elevated: #ffffff !important;
+
+  --student-success: #16a34a !important;
+  --student-warning: #d97706 !important;
+  --student-danger: #dc2626 !important;
+  --student-info: #2563eb !important;
+
+  --student-text-primary: #1e293b !important;
+  --student-text-secondary: #475569 !important;
+  --student-text-muted: #94a3b8 !important;
+  --student-text-on-primary: #ffffff !important;
+
+  --student-border: #e2e8f0 !important;
+  --student-border-focus: #3b82f6 !important;
+
+  --student-shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06) !important;
+  --student-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05) !important;
+  --student-shadow-lg: 0 10px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.04) !important;
+  --student-shadow-xl: 0 20px 40px -10px rgb(0 0 0 / 0.1) !important;
+
+  /* Body itself */
+  background-color: #f0f7ff !important;
+  color: #1e293b !important;
+}
+
+/* ─────────────────────────────────────────────
+   Student Page Base
+   ───────────────────────────────────────────── */
+body.light-mode .student-page {
+  background-color: #f0f7ff !important;
+  color: #1e293b !important;
+}
+
+body.light-mode .student-terms-container,
+body.light-mode .home-container {
+  background-color: #f0f7ff !important;
+}
+
+/* ─────────────────────────────────────────────
+   Header
+   ───────────────────────────────────────────── */
+body.light-mode .student-header {
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+body.light-mode .student-logo-text {
+  color: #1e293b !important;
+}
+
+body.light-mode .student-logo-icon {
+  background: linear-gradient(135deg, #2563eb, #7c3aed) !important;
+}
+
+body.light-mode .student-points {
+  background: rgba(245, 158, 11, 0.08) !important;
+  border-color: rgba(245, 158, 11, 0.2) !important;
+  color: #b45309 !important;
+}
+
+body.light-mode .student-avatar {
+  background: linear-gradient(135deg, #0891b2, #06b6d4) !important;
+}
+
+body.light-mode .student-logout-btn {
+  background: rgba(239, 68, 68, 0.06) !important;
+  border-color: rgba(239, 68, 68, 0.12) !important;
+  color: #dc2626 !important;
+}
+
+body.light-mode .student-logout-btn:hover {
+  background-color: #dc2626 !important;
+  color: white !important;
+}
+
+/* ─────────────────────────────────────────────
+   Cards — All variants
+   ───────────────────────────────────────────── */
+body.light-mode .card-student,
+body.light-mode .subject-card,
+body.light-mode .question-card,
+body.light-mode .question-card-item,
+body.light-mode .sidebar-card,
+body.light-mode .exam-premium-card,
+body.light-mode .term-glass-card,
+body.light-mode .intro-card,
+body.light-mode .ask-section {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+body.light-mode .subject-card:hover {
+  border-color: #93c5fd !important;
+  box-shadow: 0 15px 35px -10px rgba(37, 99, 235, 0.12) !important;
+}
+
+body.light-mode .term-glass-card:hover {
+  border-color: #93c5fd !important;
+  box-shadow: 0 20px 40px -10px rgba(37, 99, 235, 0.12) !important;
+}
+
+/* ─────────────────────────────────────────────
+   Home Page
+   ───────────────────────────────────────────── */
+body.light-mode .home-header {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%) !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+body.light-mode .home-header::before {
+  background: linear-gradient(90deg, #2563eb, #0891b2, #16a34a) !important;
+}
+
+body.light-mode .home-header h1,
+body.light-mode .subjects-header h2 {
+  color: #1e293b !important;
+}
+
+body.light-mode .subjects-header p {
+  color: #64748b !important;
+}
+
+body.light-mode .user-name {
+  color: #1e293b !important;
+}
+
+body.light-mode .welcome-text {
+  color: #64748b !important;
+}
+
+body.light-mode .user-points {
+  background: linear-gradient(135deg, #fffbeb, #fef3c7) !important;
+  border-color: #fde68a !important;
+  color: #92400e !important;
+}
+
+body.light-mode .user-rank {
+  background: linear-gradient(135deg, #f0f9ff, #e0f2fe) !important;
+  border-color: #bae6fd !important;
+  color: #075985 !important;
+}
+
+body.light-mode .stat-item {
+  color: #2563eb !important;
+}
+
+/* ─────────────────────────────────────────────
+   Terms Page
+   ───────────────────────────────────────────── */
+body.light-mode .terms-header {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%) !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+body.light-mode .terms-header::before {
+  background: linear-gradient(90deg, #2563eb, #0891b2, #16a34a) !important;
+}
+
+body.light-mode .brand-section h1 {
+  color: #1e293b !important;
+}
+
+body.light-mode .user-profile {
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9) !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-mode .user-meta .name-text {
+  color: #1e293b !important;
+}
+
+body.light-mode .user-meta .welcome-text {
+  color: #94a3b8 !important;
+}
+
+body.light-mode .logout-btn {
+  background-color: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+
+body.light-mode .term-icon-wrapper {
+  background: linear-gradient(135deg, #dbeafe, #e0f2fe) !important;
+  color: #2563eb !important;
+}
+
+body.light-mode .term-glass-card:hover .term-icon-wrapper {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+  color: white !important;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3) !important;
+}
+
+body.light-mode .term-name {
+  color: #1e293b !important;
+}
+
+body.light-mode .term-badge {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(37, 99, 235, 0.04)) !important;
+  color: #2563eb !important;
+  border-color: rgba(37, 99, 235, 0.12) !important;
+}
+
+body.light-mode .term-glass-card::before {
+  background: linear-gradient(90deg, #2563eb, #0891b2) !important;
+}
+
+body.light-mode .action-trigger {
+  color: #2563eb !important;
+}
+
+body.light-mode .intro-card::before {
+  background: linear-gradient(90deg, #2563eb, #0891b2, #16a34a) !important;
+}
+
+body.light-mode .intro-card h2 {
+  color: #1e293b !important;
+}
+
+body.light-mode .intro-card p {
+  color: #64748b !important;
+}
+
+body.light-mode .empty-terms-state,
+body.light-mode .empty-state {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-mode .empty-terms-state h3,
+body.light-mode .empty-state h3 {
+  color: #1e293b !important;
+}
+
+/* ─────────────────────────────────────────────
+   Buttons
+   ───────────────────────────────────────────── */
+body.light-mode .btn-student-primary {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.25) !important;
+}
+
+body.light-mode .btn-student-primary:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%) !important;
+  box-shadow: 0 8px 25px rgba(37, 99, 235, 0.35) !important;
+}
+
+body.light-mode .btn-student-secondary {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-mode .btn-student-secondary:hover {
+  background-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+/* ─────────────────────────────────────────────
+   Inputs
+   ───────────────────────────────────────────── */
+body.light-mode .input-student {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+body.light-mode .input-student:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12) !important;
+}
+
+/* ─────────────────────────────────────────────
+   Tabs
+   ───────────────────────────────────────────── */
+body.light-mode .student-tabs-buttons,
+body.light-mode .student-bg-subtle,
+body.light-mode .subject-tabs {
+  background-color: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-mode .student-tab-btn {
+  color: #64748b !important;
+}
+
+body.light-mode .student-tab-btn:hover {
+  background-color: rgba(37, 99, 235, 0.04) !important;
+  color: #1e293b !important;
+}
+
+body.light-mode .student-tab-btn.active {
+  background-color: #ffffff !important;
+  color: #2563eb !important;
+}
+
+body.light-mode .student-text-secondary {
+  color: #475569 !important;
+}
+
+/* ─────────────────────────────────────────────
+   Tables
+   ───────────────────────────────────────────── */
+body.light-mode .student-table-container {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-mode .student-table th {
+  background-color: #f8fafc !important;
+  color: #64748b !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+body.light-mode .student-table td {
+  border-bottom-color: #f1f5f9 !important;
+  color: #1e293b !important;
+}
+
+body.light-mode .student-table tr:hover td {
+  background-color: #f8fafc !important;
+}
+
+/* ─────────────────────────────────────────────
+   Exam
+   ───────────────────────────────────────────── */
+body.light-mode .exam-header {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%) !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+body.light-mode .exam-container,
+body.light-mode .exam-page {
+  background-color: #f0f7ff !important;
+}
+
+body.light-mode .exam-question-card {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-mode .exam-option {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+body.light-mode .exam-option:hover {
+  background-color: #eff6ff !important;
+  border-color: #93c5fd !important;
+}
+
+body.light-mode .exam-option.selected {
+  background-color: #eff6ff !important;
+  border-color: #3b82f6 !important;
+  color: #1d4ed8 !important;
+}
+
+body.light-mode .exam-timer {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+body.light-mode .exam-sidebar {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-mode .exam-question-nav-btn {
+  background-color: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+body.light-mode .exam-question-nav-btn.answered {
+  background-color: #dbeafe !important;
+  border-color: #93c5fd !important;
+  color: #1d4ed8 !important;
+}
+
+body.light-mode .exam-question-nav-btn.current {
+  background-color: #2563eb !important;
+  color: white !important;
+}
+
+/* ─────────────────────────────────────────────
+   PDF Viewer
+   ───────────────────────────────────────────── */
+body.light-mode .pdf-viewer-container {
+  background-color: #ffffff !important;
+}
+
+body.light-mode .pdf-viewer-header {
+  background-color: #f8fafc !important;
+  border-bottom-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+/* ─────────────────────────────────────────────
+   Questions / Results / Subject Detail / Personal Bank
+   ───────────────────────────────────────────── */
+body.light-mode .questions-container,
+body.light-mode .questions-page,
+body.light-mode .result-container,
+body.light-mode .exam-result-page,
+body.light-mode .personal-bank-page {
+  background-color: #f0f7ff !important;
+}
+
+body.light-mode .result-card,
+body.light-mode .subject-info-card,
+body.light-mode .level-card,
+body.light-mode .bank-card {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-mode .result-stat-card {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-mode .level-card:hover {
+  border-color: #93c5fd !important;
+}
+
+body.light-mode .subject-detail-header {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%) !important;
+}
+
+/* ─────────────────────────────────────────────
+   Modals
+   ───────────────────────────────────────────── */
+body.light-mode .student-modal-overlay {
+  background-color: rgba(15, 23, 42, 0.4) !important;
+}
+
+body.light-mode .student-modal {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+body.light-mode .student-modal-header {
+  border-bottom-color: #e2e8f0 !important;
+}
+
+body.light-mode .student-modal-footer {
+  background-color: #f8fafc !important;
+  border-top-color: #e2e8f0 !important;
+}
+
+/* ─────────────────────────────────────────────
+   Progress Bar
+   ───────────────────────────────────────────── */
+body.light-mode .student-progress-bar {
+  background-color: #e2e8f0 !important;
+}
+
+body.light-mode .student-progress-fill {
+  background: linear-gradient(90deg, #2563eb, #3b82f6) !important;
+}
+
+/* ─────────────────────────────────────────────
+   Rating
+   ───────────────────────────────────────────── */
+body.light-mode .subject-rating-box {
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9) !important;
+}
+
+body.light-mode .rating-text {
+  color: #64748b !important;
+}
+
+body.light-mode .star {
+  color: #cbd5e1 !important;
+}
+
+body.light-mode .subject-placeholder {
+  background: linear-gradient(135deg, #eef2ff, #e0e7ff) !important;
+}
+
+/* ─────────────────────────────────────────────
+   Notifications
+   ───────────────────────────────────────────── */
+body.light-mode .notification-item {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-mode .notification-item.unread {
+  background-color: #eff6ff !important;
+  border-color: #bfdbfe !important;
+}
+
+/* ─────────────────────────────────────────────
+   Scrollbar
+   ───────────────────────────────────────────── */
+body.light-mode ::-webkit-scrollbar-track {
+  background: #f8fafc !important;
+}
+
+body.light-mode ::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+}
+
+body.light-mode ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8 !important;
+}
+
+/* ─────────────────────────────────────────────
+   Selection
+   ───────────────────────────────────────────── */
+body.light-mode ::selection {
+  background: rgba(37, 99, 235, 0.12) !important;
+  color: #1d4ed8 !important;
+}
+
+/* ─────────────────────────────────────────────
+   Toggle Button — Light Active
+   ───────────────────────────────────────────── */
+.dark-mode-toggle.light-active {
+  background: linear-gradient(135deg, #16a34a, #22c55e) !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 8px 25px rgba(22, 163, 74, 0.35) !important;
+}
+
+.dark-mode-toggle.light-active:hover {
+  background: linear-gradient(135deg, #15803d, #16a34a) !important;
+  box-shadow: 0 10px 30px rgba(22, 163, 74, 0.45) !important;
+}
+
+/* ─────────────────────────────────────────────
+   Toast
+   ───────────────────────────────────────────── */
+body.light-mode .Toastify__toast {
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-mode .Toastify__toast--success {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+}
+
+/* ─────────────────────────────────────────────
+   Loading
+   ───────────────────────────────────────────── */
+body.light-mode .loading {
+  color: #2563eb !important;
+}
+
+body.light-mode .loading-container {
+  background: #f0f7ff !important;
+}
+
+/* ─────────────────────────────────────────────
+   Date Pickers + Number Spinners
+   ───────────────────────────────────────────── */
+body.light-mode input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+body.light-mode input[type="date"]::-webkit-calendar-picker-indicator {
+  background-color: #2563eb !important;
+}
+
+body.light-mode input[type="number"]::-webkit-inner-spin-button,
+body.light-mode input[type="number"]::-webkit-outer-spin-button {
+  background: #f8fafc !important;
+  border-left-color: #e2e8f0 !important;
+}
+
+/* ─────────────────────────────────────────────
+   Question Status Badge
+   ───────────────────────────────────────────── */
+body.light-mode .question-status-badge {
+  border-color: #e2e8f0 !important;
+}

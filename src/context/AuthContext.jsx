@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api, { studentLogin, adminLogin } from '../services/api';
 import { API_ENDPOINTS } from '../config/api';
@@ -14,46 +14,117 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [admin, setAdmin] = useState(null);
+  const [user, setUser] = useState(() => {
+    // Try to restore user from localStorage for offline mode
+    const savedUser = localStorage.getItem('offline_user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+  const [admin, setAdmin] = useState(() => {
+    // Try to restore admin from localStorage for offline mode
+    const savedAdmin = localStorage.getItem('offline_admin');
+    return savedAdmin ? JSON.parse(savedAdmin) : null;
+  });
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  const authAttempted = useRef(false);
+
+  // Listen for unauthorized events from API interceptor
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null);
+      setAdmin(null);
+      localStorage.removeItem('offline_user');
+      localStorage.removeItem('offline_admin');
+    };
+    window.addEventListener('unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('unauthorized', handleUnauthorized);
+  }, []);
 
   // Check for existing session on mount
   useEffect(() => {
     const checkAuth = async () => {
+      if (authAttempted.current) return;
+      authAttempted.current = true;
+
+      // Skip online check if we're offline
+      if (!navigator.onLine) {
+        const savedUser = localStorage.getItem('offline_user');
+        if (savedUser) {
+          console.log('[Offline] Using cached user data');
+          setUser(JSON.parse(savedUser));
+        }
+        const savedAdmin = localStorage.getItem('offline_admin');
+        if (savedAdmin) {
+          console.log('[Offline] Using cached admin data');
+          setAdmin(JSON.parse(savedAdmin));
+        }
+        setLoading(false);
+        return;
+      }
+
+      const currentHash = window.location.hash;
+      const isAdminPath = currentHash.includes('/admin');
+
       try {
-        const token = localStorage.getItem('accessToken');
-        const adminToken = localStorage.getItem('adminAccessToken');
-        const savedUser = localStorage.getItem('user');
-        const savedAdmin = localStorage.getItem('admin');
-
-        const isAdminPath = window.location.hash.includes('/admin');
-
-        if (token && savedUser && !isAdminPath) {
+        if (isAdminPath) {
+          // === Admin Path: Only check admin session ===
+          const savedAdmin = localStorage.getItem('offline_admin');
+          const adminLoginTime = localStorage.getItem('admin_login_time');
+          
           try {
-            setUser(JSON.parse(savedUser));
-            // Fetch fresh data from API
+            const adminResponse = await api.get('/admin/profile');
+            if (adminResponse.data.success) {
+              const adminData = adminResponse.data.data.admin;
+              setAdmin(adminData);
+              localStorage.setItem('offline_admin', JSON.stringify(adminData));
+              // Update login time on successful profile fetch
+              if (!adminLoginTime) {
+                localStorage.setItem('admin_login_time', Date.now().toString());
+              }
+            }
+          } catch (err) {
+            // Check if session expired (3 days)
+            if (adminLoginTime) {
+              const elapsed = Date.now() - parseInt(adminLoginTime);
+              const threeDays = 3 * 24 * 60 * 60 * 1000;
+              if (elapsed > threeDays) {
+                // Session expired — clear everything
+                localStorage.removeItem('offline_admin');
+                localStorage.removeItem('admin_login_time');
+                setAdmin(null);
+              } else if (savedAdmin) {
+                // Within 3 days — use cached data, the refresh token will handle re-auth
+                console.log('[Admin] Using cached admin data, session still within 3-day window');
+                setAdmin(JSON.parse(savedAdmin));
+              }
+            } else {
+              // No login time recorded, clear admin data
+              if (err.response?.status === 401) {
+                localStorage.removeItem('offline_admin');
+                setAdmin(null);
+              }
+            }
+          }
+        } else {
+          // === Student Path: Only check student session ===
+          try {
             const response = await api.get(API_ENDPOINTS.PROFILE);
             if (response.data.success) {
               const userData = response.data.data.user;
               setUser(userData);
-              localStorage.setItem('user', JSON.stringify(userData));
+              localStorage.setItem('offline_user', JSON.stringify(userData));
             }
-          } catch (err) {
-            console.error('Student profile refresh failed:', err.message);
-            // If it's a 403 (Device mismatch) or 401 (Expired), the interceptor will handle it
+          } catch (error) {
+            if (error.response?.status !== 401) {
+              console.error('Auth check failed:', error);
+            }
+            if (error.response?.status === 401) {
+              localStorage.removeItem('offline_user');
+              setUser(null);
+            }
           }
         }
-
-        if (adminToken && savedAdmin) {
-          setAdmin(JSON.parse(savedAdmin));
-          // Refresh admin stats or profile if needed
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        // Don't clear everything, just current invalid session info if needed
-        // but generally let the interceptor handle 401s
       } finally {
         setLoading(false);
       }
@@ -62,21 +133,77 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, []);
 
-  // Student login
-  const login = async (name, email) => {
-    try {
-      const response = await studentLogin({ name, email });
-      const { user: userData, accessToken } = response.data.data;
+  // Advanced Heartbeat & Activity Tracker (Presence Detection)
+  useEffect(() => {
+    if (!user) return;
 
-      // Save to localStorage
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('user', JSON.stringify(userData));
+    let heartbeatInterval;
+    let idleTimeout;
+    let isIdle = false;
+
+    const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'mousemove'];
+    
+    // Send heartbeat to server
+    const sendHeartbeat = async () => {
+      if (!isIdle && navigator.onLine) {
+        try {
+          await api.post('/auth/heartbeat', {}, { retry: false });
+        } catch (error) {
+          // Silent fail
+        }
+      }
+    };
+
+    // Reset idle status when user interacts
+    const resetIdleTimer = () => {
+      if (isIdle) {
+        isIdle = false;
+        sendHeartbeat(); // Immediate ping upon returning from idle
+      }
       
-      // Save credentials for auto-login
-      localStorage.setItem('savedStudentName', name);
-      localStorage.setItem('savedStudentEmail', email);
+      clearTimeout(idleTimeout);
+      // Mark as idle if no interaction for 60 seconds
+      idleTimeout = setTimeout(() => {
+        isIdle = true;
+      }, 60 * 1000);
+    };
+
+    // Handle tab switching
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        isIdle = true; // Immediately idle when switching tabs or minimizing
+      } else {
+        resetIdleTimer(); // Active when returning
+      }
+    };
+
+    // Setup listeners
+    activityEvents.forEach(event => document.addEventListener(event, resetIdleTimer, { passive: true }));
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Initial state
+    resetIdleTimer();
+    sendHeartbeat();
+    
+    // Ping every 45 seconds ONLY if active
+    heartbeatInterval = setInterval(sendHeartbeat, 45 * 1000);
+
+    return () => {
+      activityEvents.forEach(event => document.removeEventListener(event, resetIdleTimer));
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(heartbeatInterval);
+      clearTimeout(idleTimeout);
+    };
+  }, [user]);
+
+  // Student login
+  const login = useCallback(async (name, email, autoLogin = false) => {
+    try {
+      const response = await studentLogin({ name, email, autoLogin });
+      const { user: userData } = response.data.data;
 
       setUser(userData);
+      localStorage.setItem('offline_user', JSON.stringify(userData));
       navigate('/terms');
       return { success: true };
     } catch (error) {
@@ -84,22 +211,16 @@ export const AuthProvider = ({ children }) => {
       
       let detailedMessage = error.response?.data?.message || 'فشل تسجيل الدخول';
 
-      if (import.meta.env.DEV && error.response?.data?.debug_info) {
-        console.log('DEBUG: Server Response Data:', JSON.stringify(error.response.data, null, 2));
-        const { server_payload_to_sign } = error.response.data.debug_info;
-        // Overwrite the message to make the payload visible in the toast
-        detailedMessage = `Server Payload: ${server_payload_to_sign}`;
-      }
-
       return {
         success: false,
-        message: detailedMessage
+        message: detailedMessage,
+        status: error.response?.status
       };
     }
-  };
+  }, [navigate]);
 
   // Admin login
-  const adminLoginHandler = async (email, password, mfaCode = null) => {
+  const adminLoginHandler = useCallback(async (email, password, mfaCode = null) => {
     try {
       const response = await adminLogin({ email, password, mfaCode });
       
@@ -111,12 +232,11 @@ export const AuthProvider = ({ children }) => {
         };
       }
 
-      const { admin: adminData, accessToken } = response.data.data;
-
-      localStorage.setItem('adminAccessToken', accessToken);
-      localStorage.setItem('admin', JSON.stringify(adminData));
+      const { admin: adminData } = response.data.data;
 
       setAdmin(adminData);
+      localStorage.setItem('offline_admin', JSON.stringify(adminData));
+      localStorage.setItem('admin_login_time', Date.now().toString());
       navigate('/admin/dashboard');
       return { success: true };
     } catch (error) {
@@ -126,54 +246,53 @@ export const AuthProvider = ({ children }) => {
         message: error.response?.data?.message || 'فشل تسجيل الدخول كمسؤول'
       };
     }
-  };
+  }, [navigate]);
 
   // Student logout
-  const logoutHandler = async () => {
+  const logoutHandler = useCallback(async () => {
     try {
       await api.post('/auth/logout');
     } catch (err) {
       console.error('Logout error:', err);
     }
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('user');
-    
-    // localStorage.removeItem('savedStudentName');
-    // localStorage.removeItem('savedStudentEmail');
-
     setUser(null);
-    // Use navigate but also trigger a small delay for state cleanup
+    localStorage.removeItem('offline_user');
+    // Clear Capacitor token storage
+    localStorage.removeItem('cap_access_token');
+    localStorage.removeItem('cap_refresh_token');
     setTimeout(() => navigate('/login'), 10);
-  };
+  }, [navigate]);
 
   // Refresh user data
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
+    if (!navigator.onLine) return;
     try {
       const response = await api.get(API_ENDPOINTS.PROFILE);
       if (response.data.success) {
         const userData = response.data.data.user;
         setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem('offline_user', JSON.stringify(userData));
       }
     } catch (error) {
       console.error('Failed to refresh user data:', error);
-      // 401 will be handled by interceptor
     }
-  };
+  }, []);
 
   // Admin logout
-  const adminLogoutHandler = async () => {
+  const adminLogoutHandler = useCallback(async () => {
     try {
       await api.post('/admin/logout');
     } catch (err) {
       console.error('Admin logout error:', err);
     }
-    localStorage.removeItem('adminAccessToken');
-    localStorage.removeItem('admin');
-
     setAdmin(null);
+    localStorage.removeItem('offline_admin');
+    localStorage.removeItem('admin_login_time');
+    // Clear Capacitor token storage (same as student logout)
+    localStorage.removeItem('cap_access_token');
+    localStorage.removeItem('cap_refresh_token');
     setTimeout(() => navigate('/admin/login'), 10);
-  };
+  }, [navigate]);
 
   const value = {
     user,

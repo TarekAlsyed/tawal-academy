@@ -80,14 +80,22 @@ const AdminLogin = () => {
       justifyContent: 'center', 
       alignItems: 'center', 
       minHeight: '100vh',
-      background: 'var(--admin-bg-primary)' 
+      background: 'linear-gradient(135deg, #f0f4f8 0%, #eef2ff 40%, #f8fafc 70%, #e0e7ff 100%)',
+      position: 'relative',
+      overflow: 'hidden'
     }}>
+      {/* Decorative blobs */}
+      <div style={{ position: 'absolute', width: '450px', height: '450px', background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)', borderRadius: '50%', top: '-120px', right: '-80px', pointerEvents: 'none' }}></div>
+      <div style={{ position: 'absolute', width: '500px', height: '500px', background: 'radial-gradient(circle, rgba(79,70,229,0.08) 0%, transparent 70%)', borderRadius: '50%', bottom: '-180px', left: '-120px', pointerEvents: 'none' }}></div>
       <div className="admin-card" style={{ 
         width: '100%', 
-        maxWidth: '420px', 
-        padding: '2.5rem',
-        boxShadow: 'var(--admin-shadow-lg)',
-        border: '1px solid var(--admin-border)'
+        maxWidth: '440px', 
+        padding: '3rem 2.5rem',
+        boxShadow: '0 25px 60px -15px rgba(99, 102, 241, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.5)',
+        border: '1px solid rgba(226, 232, 240, 0.4)',
+        position: 'relative',
+        zIndex: 10,
+        borderTop: '4px solid var(--admin-primary)'
       }}>
         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
           <div style={{

@@ -28,15 +28,25 @@ const Exam = () => {
       if (response.data.success) {
         setExam(response.data.data.exam);
         setCurrentIndex(0);
+        // Save for offline use
+        localStorage.setItem(`exam_cache_${id}`, JSON.stringify(response.data.data.exam));
       }
     } catch (error) {
       if (error.response?.status === 403) {
         setExam(error.response.data.data.exam);
         setError(error.response.data.message);
       } else {
-        const errorMsg = error.response?.data?.message || 'فشل تحميل الامتحان';
-        toast.error(errorMsg);
-        navigate('/');
+        // Fallback to offline cache
+        const cachedExam = localStorage.getItem(`exam_cache_${id}`);
+        if (cachedExam) {
+          console.log(`[Offline] Using local backup for exam metadata ${id}`);
+          setExam(JSON.parse(cachedExam));
+          setCurrentIndex(0);
+        } else {
+          const errorMsg = error.response?.data?.message || 'فشل تحميل الامتحان من الشبكة ولا يوجد نسخة محفوظة';
+          toast.error(errorMsg);
+          navigate('/');
+        }
       }
     } finally {
       setLoading(false);
@@ -55,7 +65,15 @@ const Exam = () => {
         }
       }
     } catch (error) {
-      console.error('فشل تحميل التقدم المحفوظ', error.response?.data || error.message);
+      if (!navigator.onLine) {
+        const localProgress = localStorage.getItem(`offline_exam_progress_${id}`);
+        if (localProgress) {
+          setAnswers(JSON.parse(localProgress));
+          console.log('تم استرجاع التقدم المحفوظ محلياً');
+        }
+      } else {
+        console.error('فشل تحميل التقدم المحفوظ', error.response?.data || error.message);
+      }
     }
   }, [id]);
 
@@ -84,6 +102,8 @@ const Exam = () => {
         if (actualViolation) {
           toast.error('تم إنهاء الامتحان تلقائياً بسبب مخالفة قوانين المراقبة الذكية.');
         }
+        // Remove local progress
+        localStorage.removeItem(`offline_exam_progress_${id}`);
         navigate(`/exam-result/${id}`, {
           state: { 
             result: response.data.data,
@@ -92,7 +112,20 @@ const Exam = () => {
         });
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'حدث خطأ أثناء تسليم الامتحان');
+      if (!navigator.onLine) {
+        // Save to offline submissions
+        const offlineSubs = JSON.parse(localStorage.getItem('offline_submissions') || '[]');
+        offlineSubs.push({
+          id, answers, status: actualViolation ? 'violation' : 'completed', timestamp: Date.now(),
+          termId: exam.term_id, name: exam.name
+        });
+        localStorage.setItem('offline_submissions', JSON.stringify(offlineSubs));
+        localStorage.removeItem(`offline_exam_progress_${id}`);
+        toast.success('أنت في وضع الأوفلاين. تم حفظ إجاباتك محلياً بنجاح وسيتم مزامنتها لاحقاً.');
+        navigate('/', { replace: true });
+      } else {
+        toast.error(error.response?.data?.message || 'حدث خطأ أثناء تسليم الامتحان');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -154,11 +187,16 @@ const Exam = () => {
 
     const newAnswers = { ...answers, [questionId]: answer };
     setAnswers(newAnswers);
+    
+    // Always save locally first
+    localStorage.setItem(`offline_exam_progress_${id}`, JSON.stringify(newAnswers));
 
     try {
-      await api.post(API_ENDPOINTS.EXAM_PROGRESS(id), { answers: newAnswers });
+      if (navigator.onLine) {
+        await api.post(API_ENDPOINTS.EXAM_PROGRESS(id), { answers: newAnswers });
+      }
     } catch (error) {
-      console.error('فشل حفظ التقدم:', error.response?.data || error.message);
+      console.error('فشل حفظ التقدم في السيرفر:', error.response?.data || error.message);
     }
   };
 
@@ -188,17 +226,13 @@ const Exam = () => {
 
       // تسجيل المخالفة في الخلفية
       try {
-        await api.post('/monitoring/report-error', {
-          errorType: 'EXAM_VIOLATION',
-          message: reason,
-          component: 'Exam Proctoring',
+        await api.post(API_ENDPOINTS.REPORT_VIOLATION, {
+          user_id: 'current',
+          exam_id: id,
+          violation_type: 'Proctoring',
+          description: reason,
           severity: newCount >= 3 ? 'critical' : 'high',
-          details: {
-            examId: id,
-            violationCount: newCount,
-            url: window.location.href,
-            userAgent: navigator.userAgent
-          }
+          action_taken: newCount >= 5 ? 'auto_submit' : 'warning'
         });
       } catch (err) {
         console.error('فشل تسجيل المخالفة:', err);
@@ -353,12 +387,36 @@ const Exam = () => {
                 <div className="question-meta">
                   <span className="question-badge">السؤال {currentIndex + 1}</span>
                   {answers[currentQuestion.id] && (
-                    <span className={`answer-status-badge ${String(answers[currentQuestion.id]).toLowerCase() === String(currentQuestion.correct_answer).toLowerCase() ? 'correct' : 'wrong'}`}>
-                      {String(answers[currentQuestion.id]).toLowerCase() === String(currentQuestion.correct_answer).toLowerCase() ? (
-                        <><FiCheckCircle /> تم الحفظ</>
-                      ) : (
-                        <><FiCheck /> تم الحفظ</>
-                      )}
+                    <span className={`answer-status-badge ${
+                      (() => {
+                        const normalize = (ans) => {
+                          if (!ans) return null;
+                          const a = String(ans).trim().toLowerCase();
+                          if (['a', 'صح', 'true', 'yes', '1', 'أ', 'أ.'].includes(a)) return 'a';
+                          if (['b', 'خطأ', 'false', 'no', '2', 'ب', 'ب.'].includes(a)) return 'b';
+                          if (['c', '3', 'ج', 'ج.'].includes(a)) return 'c';
+                          if (['d', '4', 'د', 'د.'].includes(a)) return 'd';
+                          return a;
+                        };
+                        return normalize(answers[currentQuestion.id]) === normalize(currentQuestion.correct_answer) ? 'correct' : 'wrong';
+                      })()
+                    }`}>
+                      {(() => {
+                        const normalize = (ans) => {
+                          if (!ans) return null;
+                          const a = String(ans).trim().toLowerCase();
+                          if (['a', 'صح', 'true', 'yes', '1', 'أ', 'أ.'].includes(a)) return 'a';
+                          if (['b', 'خطأ', 'false', 'no', '2', 'ب', 'ب.'].includes(a)) return 'b';
+                          if (['c', '3', 'ج', 'ج.'].includes(a)) return 'c';
+                          if (['d', '4', 'د', 'د.'].includes(a)) return 'd';
+                          return a;
+                        };
+                        return normalize(answers[currentQuestion.id]) === normalize(currentQuestion.correct_answer) ? (
+                          <><FiCheckCircle /> إجابة صحيحة</>
+                        ) : (
+                          <><FiX /> إجابة خاطئة</>
+                        );
+                      })()}
                     </span>
                   )}
                 </div>
@@ -377,18 +435,33 @@ const Exam = () => {
                       
                       if (!optionText && currentQuestion.type === 'multiple') return null;
                       
-                      const isSelected = answers[currentQuestion.id] && String(answers[currentQuestion.id]).toLowerCase() === String(optionKey).toLowerCase();
-                      const isCorrect = String(currentQuestion.correct_answer).toLowerCase() === String(optionKey).toLowerCase();
-                      const hasAnswered = !!answers[currentQuestion.id];
+                      // دالة مساعدة لتوحيد تنسيق الإجابات للمقارنة
+                      const normalizeAnswer = (ans) => {
+                        if (!ans) return null;
+                        const a = String(ans).trim().toLowerCase();
+                        if (['a', 'صح', 'true', 'yes', '1', 'أ', 'أ.'].includes(a)) return 'a';
+                        if (['b', 'خطأ', 'false', 'no', '2', 'ب', 'ب.'].includes(a)) return 'b';
+                        if (['c', '3', 'ج', 'ج.'].includes(a)) return 'c';
+                        if (['d', '4', 'د', 'د.'].includes(a)) return 'd';
+                        return a;
+                      };
+                      
+                      const studentAnswer = answers[currentQuestion.id] ? normalizeAnswer(answers[currentQuestion.id]) : null;
+                      const correctAnswer = currentQuestion.correct_answer ? normalizeAnswer(currentQuestion.correct_answer) : null;
+                      const currentOption = normalizeAnswer(optionKey);
+                      
+                      const isSelected = studentAnswer === currentOption;
+                      const isCorrect = correctAnswer === currentOption;
+                      const hasAnswered = !!studentAnswer;
                       
                       let optionClass = 'exam-option-card';
                       if (hasAnswered) {
                         if (isCorrect) {
-                          optionClass += ' is-correct';
+                          optionClass += ' is-correct'; // الإجابة الصحيحة دائماً خضراء بعد الحل
                         } else if (isSelected) {
-                          optionClass += ' is-wrong';
+                          optionClass += ' is-wrong';   // إجابة الطالب خاطئة تظهر بالأحمر
                         } else {
-                          optionClass += ' is-disabled';
+                          optionClass += ' is-disabled'; // الباقي باهت
                         }
                       } else if (isSelected) {
                         optionClass += ' is-selected';
@@ -403,7 +476,15 @@ const Exam = () => {
                           <div className="option-letter">{currentQuestion.type === 'multiple' ? optionKey.toUpperCase() : (optionKey === 'a' ? '✓' : '✗')}</div>
                           <div className="option-content">{optionText}</div>
                           <div className="option-check">
-                            {hasAnswered && isCorrect ? <FiCheck /> : isSelected ? <div className="dot"></div> : null}
+                            {hasAnswered ? (
+                              isCorrect ? (
+                                <FiCheckCircle style={{ color: '#10b981', fontSize: '1.5rem' }} />
+                              ) : isSelected ? (
+                                <FiX style={{ color: '#ef4444', fontSize: '1.5rem' }} />
+                              ) : null
+                            ) : isSelected ? (
+                              <div className="dot"></div>
+                            ) : null}
                           </div>
                         </div>
                       );

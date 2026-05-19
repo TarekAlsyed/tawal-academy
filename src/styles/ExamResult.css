@@ -1,4 +1,4 @@
-/* 🏆 EXAM RESULT - PREMIUM DESIGN */
+/* 🏆 EXAM RESULT - PREMIUM DESIGN 2026 */
 
 .result-page-wrapper {
   background-color: var(--student-bg-app);
@@ -16,7 +16,7 @@
   position: relative;
 }
 
-/* User Stats in Header */
+/* User Stats */
 .user-stats-mini {
   display: flex;
   align-items: center;
@@ -28,7 +28,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: #fffbeb;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
   border: 1px solid #fde68a;
   border-radius: 999px;
   color: #92400e;
@@ -39,7 +39,7 @@
 .user-avatar-mini {
   width: 36px;
   height: 36px;
-  background: var(--student-primary);
+  background: linear-gradient(135deg, var(--student-primary), #818cf8);
   color: white;
   border-radius: 50%;
   display: flex;
@@ -50,16 +50,17 @@
   box-shadow: var(--student-shadow-sm);
 }
 
-/* Premium Result Card */
+/* Result Card */
 .result-card-premium {
   background: white;
   width: 100%;
   max-width: 600px;
-  border-radius: 2rem;
+  border-radius: 1.5rem;
   box-shadow: var(--student-shadow-xl);
   overflow: hidden;
   position: relative;
   animation: card-entrance 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid var(--student-border);
 }
 
 @keyframes card-entrance {
@@ -69,7 +70,7 @@
 
 .result-header-deco {
   height: 120px;
-  background: linear-gradient(135deg, var(--student-primary) 0%, var(--student-primary-dark) 100%);
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   position: relative;
   display: flex;
   justify-content: center;
@@ -95,10 +96,11 @@
   margin-bottom: -50px;
   box-shadow: var(--student-shadow-lg);
   z-index: 10;
+  border: 4px solid white;
 }
 
 .status-icon {
-  font-size: 4rem;
+  font-size: 3.5rem;
 }
 
 .is-success .status-icon { color: #10b981; }
@@ -123,7 +125,7 @@
   line-height: 1.6;
 }
 
-/* Score Visualization */
+/* Score Ring */
 .score-visualization {
   margin-bottom: 2.5rem;
 }
@@ -141,17 +143,17 @@
 
 .ring-bg {
   fill: none;
-  stroke: var(--student-bg-subtle);
+  stroke: #f1f5f9;
   stroke-width: 8;
 }
 
 .ring-fill {
   fill: none;
-  stroke: var(--student-primary);
+  stroke: #6366f1;
   stroke-width: 8;
   stroke-linecap: round;
   stroke-dasharray: 283;
-  transition: stroke-dashoffset 1s ease-out;
+  transition: stroke-dashoffset 1.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .is-success .ring-fill { stroke: #10b981; }
@@ -187,7 +189,7 @@
 }
 
 .points-earned-card {
-  background: #fffbeb;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
   border: 2px dashed #f59e0b;
   border-radius: var(--student-radius-lg);
   padding: 1.25rem;
@@ -225,7 +227,7 @@
   color: #b45309;
 }
 
-/* Stats Summary */
+/* Stats Grid */
 .stats-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -234,12 +236,13 @@
 }
 
 .stat-box {
-  background: var(--student-bg-subtle);
-  padding: 1rem;
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  padding: 1.25rem;
   border-radius: var(--student-radius-lg);
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  border: 1px solid #e2e8f0;
 }
 
 .stat-label {
@@ -255,7 +258,7 @@
 
 .stat-box.correct .stat-value { color: #10b981; }
 .stat-box.wrong .stat-value { color: #ef4444; }
-.stat-box.total .stat-value { color: var(--student-primary); }
+.stat-box.total .stat-value { color: #6366f1; }
 
 /* Action Buttons */
 .result-action-buttons {
@@ -276,18 +279,19 @@
   cursor: pointer;
   transition: var(--student-transition);
   border: none;
+  font-family: 'Tajawal', sans-serif;
 }
 
 .primary-btn {
-  background: var(--student-primary);
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);
 }
 
 .primary-btn:hover {
-  background: var(--student-primary-dark);
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
   transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(79, 70, 229, 0.4);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
 }
 
 .secondary-actions {
@@ -303,9 +307,10 @@
 }
 
 .outline-btn:hover {
-  background: var(--student-bg-subtle);
-  border-color: var(--student-primary-light);
-  color: var(--student-primary);
+  background: #f8fafc;
+  border-color: #a5b4fc;
+  color: #6366f1;
+  transform: translateY(-1px);
 }
 
 /* Responsive */
@@ -313,20 +318,20 @@
   .result-body {
     padding: 4.5rem 1.5rem 2.5rem;
   }
-  
+
   .result-title {
     font-size: 1.5rem;
   }
-  
+
   .score-ring {
     width: 140px;
     height: 140px;
   }
-  
+
   .score-text .number {
     font-size: 2.25rem;
   }
-  
+
   .secondary-actions {
     grid-template-columns: 1fr;
   }

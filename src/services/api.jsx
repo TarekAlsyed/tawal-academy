@@ -1,34 +1,37 @@
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import CryptoJS from 'crypto-js';
 import { generateFingerprint } from '../utils/fingerprint';
+import { Capacitor } from '@capacitor/core';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://tawal-academy.alwaysdata.net/api';
-const APP_SECRET = import.meta.env.VITE_APP_APP_SECRET || 'tawal-elite-secret-2026-key';
 
-// HMAC Generation Helper - Final, most robust version
-const generateHMAC = (body, timestamp, secret) => {
-    try {
-        // Create a new object with sorted keys to guarantee canonical representation
-        const canonicalObject = {};
-        Object.keys(body || {}).sort().forEach(key => {
-            canonicalObject[key] = body[key];
-        });
+// SECURITY: APP_SECRET removed from frontend (v2.2.0)
+// HMAC integrity is now fully server-side. Frontend sends timestamp for replay protection only.
 
-        // Use a stable stringification without any spaces or hidden characters
-        const dataString = JSON.stringify(canonicalObject);
-        const payload = `${timestamp}.${dataString}`;
+// ============================================
+// Capacitor Authentication Strategy (Dual-Layer)
+// ============================================
+// PRIMARY: CapacitorHttp + CapacitorCookies (capacitor.config.ts)
+//   → Routes all fetch/XHR through native OkHttp layer
+//   → Bypasses CORS entirely + handles cookies natively
+//
+// SECONDARY (Defense-in-Depth): TokenStore + Authorization header
+//   → Stores tokens in localStorage as backup
+//   → Attaches Bearer header in case native cookies fail
+//
+// On web: HttpOnly cookies via withCredentials (unchanged)
+// ============================================
+const IS_NATIVE = Capacitor.isNativePlatform();
 
-        // This log is critical for any future debugging
-        if (import.meta.env.DEV) {
-            console.log(`[Security Debug] Frontend Payload: "${payload}"`);
-        }
-
-        return CryptoJS.HmacSHA256(payload, secret).toString(CryptoJS.enc.Hex);
-    } catch (e) {
-        console.error('HMAC Generation Error:', e);
-        return '';
-    }
+const TokenStore = {
+  getAccess: () => localStorage.getItem('cap_access_token'),
+  getRefresh: () => localStorage.getItem('cap_refresh_token'),
+  setAccess: (token) => localStorage.setItem('cap_access_token', token),
+  setRefresh: (token) => localStorage.setItem('cap_refresh_token', token),
+  clear: () => {
+    localStorage.removeItem('cap_access_token');
+    localStorage.removeItem('cap_refresh_token');
+  }
 };
 
 // Create a special instance for public/health checks that doesn't use interceptors if needed
@@ -38,10 +41,12 @@ const healthApi = axios.create({
 });
 
 // Create axios instance
+// On native: withCredentials=false (CapacitorHttp handles cookies at native layer)
+// On web: withCredentials=true (browser sends HttpOnly cookies)
 const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true,
-  timeout: 600000, // Increased to 10 minutes for stable large file uploads (10-15MB)
+  withCredentials: !IS_NATIVE,
+  timeout: 600000, // 10 minutes for large file uploads (10-15MB)
   headers: {
     'Content-Type': 'application/json'
   }
@@ -53,8 +58,11 @@ api.interceptors.response.use(
   async (error) => {
     const { config } = error;
     
-    // Only retry on network errors or 5xx server errors
-    if (!config || !config.retry || (error.response && error.response.status < 500)) {
+    // Only retry on network errors or 5xx server errors, AND if online
+    if (!config || !config.retry || (error.response && error.response.status < 500) || !navigator.onLine) {
+      if (!navigator.onLine) {
+        console.log('[Offline] Request failed due to no connection. Skipping retry.');
+      }
       return Promise.reject(error);
     }
 
@@ -80,6 +88,12 @@ api.interceptors.request.use(
   (config) => {
     // Default retry settings
     config.retry = 2; 
+
+    // CRITICAL: Disable retries for heavy upload requests to avoid infinite loops and server load
+    if (config.url?.includes('/pdfs') || config.url?.includes('/images') || config.url?.includes('/upload')) {
+        config.retry = 0;
+        config.timeout = 900000; // 15 minutes for uploads
+    }
     
     // Get deviceId from localStorage or generate one
     let deviceId = localStorage.getItem('deviceId');
@@ -88,9 +102,18 @@ api.interceptors.request.use(
       localStorage.setItem('deviceId', deviceId);
     }
     
-    // Add deviceId to headers
+    // Add platform identifier + deviceId to headers
     const appSignature = import.meta.env.VITE_APP_SIGNATURE || 'tawal_academy_signature_secure_2026';
     const fingerprint = generateFingerprint();
+
+    // CAPACITOR: Send platform header so backend can tailor responses (e.g. include refreshToken)
+    if (IS_NATIVE) {
+      if (config.headers.set) {
+        config.headers.set('X-Platform', 'capacitor');
+      } else {
+        config.headers['X-Platform'] = 'capacitor';
+      }
+    }
     
     if (config.headers.set) {
       config.headers.set('X-Device-Id', deviceId);
@@ -102,7 +125,7 @@ api.interceptors.request.use(
       config.headers['X-App-Signature'] = appSignature;
     }
 
-    // Add Request Integrity (HMAC) for POST, PUT, DELETE
+    // SECURITY v2.2.0: Send timestamp for replay protection (HMAC computed server-side now)
     const method = config.method ? config.method.toLowerCase() : '';
     const isFormData = config.data instanceof FormData;
 
@@ -115,54 +138,26 @@ api.interceptors.request.use(
         }
     }
     
-    if (method !== 'get' && method !== 'options' && !isFormData) {
+    // Add timestamp for all mutating requests (replay protection layer)
+    if (method !== 'get' && method !== 'options') {
         const timestamp = Date.now();
-        
-        // CRITICAL FIX: Ensure data is an object for HMAC calculation
-        // Axios might have already stringified it in some versions or configurations
-        let requestData = config.data;
-        if (typeof requestData === 'string') {
-            try {
-                requestData = JSON.parse(requestData);
-            } catch (e) {
-                // Not JSON, keep as is
-            }
-        }
-        
-        const hmac = generateHMAC(requestData, timestamp, APP_SECRET);
-        
         if (config.headers.set) {
-          config.headers.set('X-Request-Integrity', hmac);
           config.headers.set('X-Request-Timestamp', String(timestamp));
         } else {
-          config.headers['X-Request-Integrity'] = hmac;
           config.headers['X-Request-Timestamp'] = String(timestamp);
-        }
-        
-        // Add console log for production debugging if needed
-        if (import.meta.env.DEV) {
-            console.log(`[Security] Integrity headers added for ${method.toUpperCase()} ${config.url}`);
         }
     }
 
-    // Add token to headers (Only if we still have it in localStorage for transition, 
-    // but we prefer relying on HttpOnly cookies now)
-    const url = config.url || '';
-    const isAdminRoute = url.startsWith('/admin') || url.includes('/admin/');
-    const token = localStorage.getItem('accessToken');
-    const adminToken = localStorage.getItem('adminAccessToken');
-    
-    if (isAdminRoute && adminToken) {
-      if (config.headers.set) {
-        config.headers.set('Authorization', `Bearer ${adminToken}`);
-      } else {
-        config.headers.Authorization = `Bearer ${adminToken}`;
-      }
-    } else if (!isAdminRoute && token) {
-      if (config.headers.set) {
-        config.headers.set('Authorization', `Bearer ${token}`);
-      } else {
-        config.headers.Authorization = `Bearer ${token}`;
+    // CAPACITOR (Defense-in-Depth): Attach Bearer header as backup auth
+    // Primary auth is via CapacitorHttp native cookies, this is secondary
+    if (IS_NATIVE) {
+      const accessToken = TokenStore.getAccess();
+      if (accessToken) {
+        if (config.headers.set) {
+          config.headers.set('Authorization', `Bearer ${accessToken}`);
+        } else {
+          config.headers['Authorization'] = `Bearer ${accessToken}`;
+        }
       }
     }
     
@@ -173,9 +168,38 @@ api.interceptors.request.use(
   }
 );
 
+// Singleton promise for refresh token to avoid multiple simultaneous calls
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+const subscribeTokenRefresh = (cb) => {
+  refreshSubscribers.push(cb);
+};
+
+const onRefreshed = (token) => {
+  refreshSubscribers.map((cb) => cb(token, null));
+  refreshSubscribers = [];
+};
+
+const onRefreshFailed = (error) => {
+  refreshSubscribers.map((cb) => cb(null, error));
+  refreshSubscribers = [];
+};
+
 // Response interceptor - handle errors and permissions
 api.interceptors.response.use(
   (response) => {
+    // CAPACITOR: Capture tokens from login/refresh responses and store locally
+    if (IS_NATIVE && response.data?.data?.accessToken) {
+      TokenStore.setAccess(response.data.data.accessToken);
+    }
+    if (IS_NATIVE && response.data?.data?.refreshToken) {
+      TokenStore.setRefresh(response.data.data.refreshToken);
+    }
+    if (IS_NATIVE && response.data?.accessToken) {
+      TokenStore.setAccess(response.data.accessToken);
+    }
+
     // Handle Pending Approval (202 Accepted)
     if (response.status === 202 && response.data?.requireApproval) {
         toast.info(response.data.message || 'تم تعليق الإجراء بانتظار موافقة المدير العام', {
@@ -208,76 +232,79 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      return api.post(refreshEndpoint)
-        .then(res => {
-          if (res.data.success) {
-            const newAccessToken = res.data.accessToken;
-            const tokenKey = isApiAdminRequest ? 'adminAccessToken' : 'accessToken';
-            localStorage.setItem(tokenKey, newAccessToken);
-            
-            // Retry the original request with new token
-            originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
-            return api(originalRequest);
-          }
-          return Promise.reject(error);
-        })
-        .catch(refreshError => {
-          // Refresh failed, logout user
-          console.log(`401 Unauthorized [${isApiAdminRequest ? 'Admin' : 'Student'}] - Handling...`);
-          
-          if (isApiAdminRequest) {
-            localStorage.removeItem('adminAccessToken');
-            localStorage.removeItem('admin');
-          } else {
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('user');
-          }
-
-          // Only redirect if we're not already on the login page
-          const currentHash = window.location.hash;
-          const isLoginPage = currentHash.includes('/login');
-          const isAdminSection = currentHash.includes('/admin');
-          
-          if (!isLoginPage) {
-            if (!isApiAdminRequest && isAdminSection) {
-              console.log('Student session expired while in Admin section - ignoring redirect');
-              return Promise.reject(error);
+      if (!isRefreshing) {
+        isRefreshing = true;
+        // CAPACITOR: Send refresh token in body (cookies won't be available)
+        const refreshBody = IS_NATIVE ? { refreshToken: TokenStore.getRefresh() } : {};
+        api.post(refreshEndpoint, refreshBody)
+          .then(res => {
+            isRefreshing = false;
+            if (res.data.success) {
+              onRefreshed(res.data.accessToken);
+            } else {
+              onRefreshFailed(new Error('Refresh failed'));
+              handleAuthFailure(isApiAdminRequest);
             }
+          })
+          .catch(refreshError => {
+            isRefreshing = false;
+            onRefreshFailed(refreshError);
+            handleAuthFailure(isApiAdminRequest);
+          });
+      }
 
-            console.log('Redirecting to login page');
-            setTimeout(() => {
-              const loginPath = isApiAdminRequest ? 'admin/login' : 'login';
-              window.location.hash = `#/${loginPath}`;
-            }, 100);
+      const retryOriginalRequest = new Promise((resolve, reject) => {
+        subscribeTokenRefresh((token, err) => {
+          if (err) {
+            reject(err);
+          } else {
+            // Cookies handle the token now, so we just retry the original request
+            resolve(api(originalRequest));
           }
-          return Promise.reject(refreshError);
         });
+      });
+
+      return retryOriginalRequest;
     }
 
     // Check if it's a network error (server down or connection lost)
     if (!error.response) {
       console.error('Network Error - Check your connection or server status');
-      
-      // Special message for large file uploads
-      const isUpload = error.config?.data instanceof FormData || 
-                       error.config?.headers?.['Content-Type']?.includes('multipart/form-data');
-      
-      if (isUpload) {
-          toast.error('فشل رفع الملف الكبير. قد يكون حجم الملف أكبر من المسموح به على الخادم أو أن اتصال الإنترنت ضعيف.', {
-              position: "top-center",
-              autoClose: 10000
-          });
-      } else {
-          toast.error('خطأ في الاتصال بالسيرفر. يرجى التحقق من اتصالك بالإنترنت.', {
-              position: "top-center"
-          });
-      }
-      return Promise.reject(error);
     }
 
     return Promise.reject(error);
   }
 );
+
+// Helper to handle authentication failure and redirect
+ const handleAuthFailure = (isAdmin) => {
+   // Don't redirect if we're offline - keep the current session in the UI
+   if (!navigator.onLine) {
+     console.log('Offline: Skipping authentication redirect');
+     return;
+   }
+
+   const currentHash = window.location.hash;
+   const isLoginPage = currentHash.includes('/login');
+   
+   // Clear state in AuthContext via custom event
+    window.dispatchEvent(new CustomEvent('unauthorized'));
+    // CAPACITOR: Clear stored tokens on auth failure
+    if (IS_NATIVE) TokenStore.clear();
+    
+    if (!isLoginPage) {
+     console.log(`401 Unauthorized [${isAdmin ? 'Admin' : 'Student'}] - Redirecting to login`);
+     const loginPath = isAdmin ? 'admin/login' : 'login';
+     // Use a flag to avoid multiple redirects in a short time
+     if (!window._isRedirecting) {
+         window._isRedirecting = true;
+         setTimeout(() => {
+           window.location.hash = `#/${loginPath}`;
+           window._isRedirecting = false;
+         }, 100);
+     }
+   }
+ };
 
 // ============================================
 // Student API
@@ -293,8 +320,8 @@ export const getSubjects = (termId) => api.get('/subjects', { params: { term_id:
 export const getStudentTerms = () => api.get('/subjects/terms');
 export const getSubjectById = (id) => api.get(`/subjects/${id}`);
 export const rateSubject = (id, rating) => api.post(`/subjects/${id}/rate`, { rating });
-export const downloadPDF = (subjectId, pdfId) => api.post(`/subjects/${subjectId}/pdfs/${pdfId}/download`);
-export const viewImage = (subjectId, imageId) => api.post(`/subjects/${subjectId}/images/${imageId}/view`);
+export const downloadPDF = (subjectId, pdfId) => api.get(`/subjects/${subjectId}/pdfs/${pdfId}/download`);
+export const viewImage = (subjectId, imageId) => api.get(`/subjects/${subjectId}/images/${imageId}/view`);
 
 // Exams
 export const getExamsBySubject = (subjectId) => api.get(`/exams/subject/${subjectId}`);
@@ -368,6 +395,7 @@ export const adminSearchStudents = (query) => api.get('/admin/students/search', 
 export const adminBlockStudent = (id, reason) => api.post(`/admin/students/${id}/block`, { reason });
 export const adminUnblockStudent = (id) => api.post(`/admin/students/${id}/unblock`);
 export const adminDeleteStudent = (id) => api.delete(`/admin/students/${id}`);
+export const adminDeleteAllStudents = () => api.delete('/admin/students/all');
 export const adminExportStudentsPDF = () => api.get('/admin/students/export', { responseType: 'blob' });
 
 // Questions
@@ -382,6 +410,7 @@ export const adminGetDashboardStats = () => api.get('/admin/stats/dashboard');
 
 // Activity Logs
 export const adminGetActivityLogs = (params) => api.get('/admin/stats/activity', { params });
+export const adminDeleteAllActivityLogs = () => api.delete('/admin/stats/activity/all');
 export const adminGetStudentLogs = (studentId, params) => api.get(`/admin/students/${studentId}/activity`, { params });
 
 export const checkServerHealth = async () => {

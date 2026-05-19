@@ -24,12 +24,8 @@ export const generateFingerprint = () => {
   } catch (e) {
     console.error('Fingerprinting failed, using fallback:', e);
     // Fallback to a simpler unique ID if something fails
-    let fallbackId = localStorage.getItem('fallback_fingerprint');
-    if (!fallbackId) {
-      fallbackId = `fb-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      localStorage.setItem('fallback_fingerprint', fallbackId);
-    }
-    return fallbackId;
+    // We generate a one-time ID for this session instead of storing in localStorage
+    return `fb-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 };
 

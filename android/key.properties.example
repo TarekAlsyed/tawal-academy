@@ -1,0 +1,8 @@
+# Release signing configuration for Tawal Academy
+# IMPORTANT: Replace the values below with your actual signing key info
+# This file should NEVER be committed to git (already in .gitignore)
+
+storePassword=REPLACE_WITH_YOUR_PASSWORD
+keyPassword=REPLACE_WITH_YOUR_PASSWORD
+keyAlias=tawal-academy
+storeFile=../tawal-release-key.jks

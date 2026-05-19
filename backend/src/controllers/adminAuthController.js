@@ -53,13 +53,13 @@ exports.login = async (req, res, next) => {
     const accessToken = jwt.sign(
       { adminId: admin.id, email: admin.email, ip: req.ip || req.connection.remoteAddress, tokenId, type: 'access' }, 
       process.env.JWT_SECRET, 
-      { expiresIn: '15m' }
+      { expiresIn: '1h' }
     );
 
     const refreshToken = jwt.sign(
       { adminId: admin.id, tokenId, type: 'refresh' },
       process.env.JWT_SECRET,
-      { expiresIn: '30d' }
+      { expiresIn: '3d' }
     );
     
     // Create active session
@@ -73,26 +73,15 @@ exports.login = async (req, res, next) => {
     // تسجيل النشاط
     try {
       await Admin.logActivity(admin.id, 'admin_login', { mfa: admin.mfa_enabled, tokenId }, req.ip);
-      
-      // Elite Recovery: If this is a successful super admin login, 
-      // automatically clear their IP from the blacklist if it was there
-      if (admin.is_super_admin) {
-        const ip = req.ip || req.connection.remoteAddress;
-        if (ip) {
-            const pool = require('../config/database');
-            await pool.query('DELETE FROM ip_blacklist WHERE ip_address = $1', [ip]);
-            console.log(`[Security Recovery] Super Admin IP ${ip} unblocked after successful login.`);
-        }
-      }
     } catch (logError) {
-      console.error('⚠️ Failed to log activity or recovery:', logError.message);
+      console.error('⚠️ Failed to log activity:', logError.message);
     }
 
     // Cookie Security Options (Elite Defense)
     const cookieOptions = {
       httpOnly: true, // Prevent XSS access
       secure: true, // ALWAYS secure in production/staging for HTTPS
-      sameSite: 'strict', // Strong CSRF protection
+      sameSite: 'none', // Required for cross-site (github.io -> alwaysdata.net)
       path: '/' // Ensure cookie is accessible globally
     };
 
@@ -103,12 +92,12 @@ exports.login = async (req, res, next) => {
 
     res.cookie('adminAccessToken', accessToken, { 
       ...cookieOptions,
-      maxAge: 15 * 60 * 1000
+      maxAge: 60 * 60 * 1000 // 1 hour
     });
 
     res.cookie('adminRefreshToken', refreshToken, {
       ...cookieOptions,
-      maxAge: 30 * 24 * 60 * 60 * 1000
+      maxAge: 3 * 24 * 60 * 60 * 1000 // 3 days
     });
 
     res.json({ 
@@ -162,14 +151,14 @@ exports.refreshToken = async (req, res, next) => {
     const accessToken = jwt.sign(
       { adminId: admin.id, email: admin.email, ip: req.ip || req.connection.remoteAddress, tokenId: decoded.tokenId, type: 'access' },
       process.env.JWT_SECRET,
-      { expiresIn: '15m' }
+      { expiresIn: '1h' }
     );
 
     res.cookie('adminAccessToken', accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 15 * 60 * 1000,
+      maxAge: 60 * 60 * 1000, // 1 hour
       path: '/'
     });
 
@@ -504,18 +493,30 @@ exports.updateAdmin = async (req, res, next) => {
     if (email) updates.email = email;
     if (permissions !== undefined) updates.permissions = JSON.stringify(permissions);
     if (req.body.permissionsDetailed !== undefined) updates.permissions_detailed = JSON.stringify(req.body.permissionsDetailed);
-    if (is_super_admin !== undefined) updates.is_super_admin = is_super_admin;
+    // SECURITY: Only super admins can change is_super_admin status
+    if (is_super_admin !== undefined && (req.admin.is_super_admin === true || req.admin.is_super_admin === 'true')) {
+      updates.is_super_admin = is_super_admin;
+    }
 
     const pool = require('../config/database');
     const fields = [];
     const values = [];
     let paramIndex = 1;
 
+    // SECURITY: Whitelist allowed columns to prevent SQL injection via dynamic query
+    const allowedColumns = ['name', 'email', 'permissions', 'permissions_detailed', 'is_super_admin'];
+
     Object.keys(updates).forEach(key => {
-      fields.push(`${key} = $${paramIndex}`);
-      values.push(updates[key]);
-      paramIndex++;
+      if (allowedColumns.includes(key)) {
+        fields.push(`${key} = $${paramIndex}`);
+        values.push(updates[key]);
+        paramIndex++;
+      }
     });
+
+    if (fields.length === 0) {
+      return res.status(400).json({ success: false, message: 'لا توجد بيانات للتحديث' });
+    }
 
     values.push(id);
 

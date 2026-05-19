@@ -27,7 +27,7 @@ class ImageStorageService {
                         font_family: "Arial",
                         font_size: 40,
                         font_weight: "bold",
-                        text: "Tawal Academy | 🔒🛡️"
+                        text: "Tawal Academy"
                     },
                     gravity: "center",
                     opacity: 20,

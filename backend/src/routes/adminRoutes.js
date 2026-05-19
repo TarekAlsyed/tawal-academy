@@ -122,22 +122,22 @@ const handleMulterError = (req, res, next) => {
   };
 };
 
-router.post('/subjects/:id/pdfs', adminAuth, (req, res, next) => {
+router.post('/subjects/:id/pdfs', adminAuth, checkPermission('subjects', 'upload_pdf'), (req, res, next) => {
   upload.array('pdfs', 50)(req, res, (err) => {
     if (err) return handleMulterError(req, res, next)(err);
     next();
   });
-}, uploadToCloudinary, checkPermission('subjects', 'upload_pdf'), adminSubjectController.addPDFs);
+}, uploadToCloudinary, adminSubjectController.addPDFs);
 
 router.delete('/subjects/:subjectId/pdfs/:pdfId', adminAuth, checkPermission('subjects', 'delete_pdf'), adminSubjectController.deletePDF);
 router.put('/subjects/:subjectId/pdfs/:pdfId/watermark', adminAuth, checkPermission('subjects', 'upload_pdf'), adminSubjectController.updatePDFWatermark);
 
-router.post('/subjects/:id/images', adminAuth, (req, res, next) => {
+router.post('/subjects/:id/images', adminAuth, checkPermission('subjects', 'upload_image'), (req, res, next) => {
   upload.array('images', 50)(req, res, (err) => {
     if (err) return handleMulterError(req, res, next)(err);
     next();
   });
-}, uploadToCloudinary, checkPermission('subjects', 'upload_image'), adminSubjectController.addImages);
+}, uploadToCloudinary, adminSubjectController.addImages);
 router.delete('/subjects/:subjectId/images/:imageId', adminAuth, checkPermission('subjects', 'delete_image'), adminSubjectController.deleteImage);
 router.post('/subjects/:id/audio', adminAuth, uploadAudio.single('audio'), checkPermission('subjects', 'edit'), adminSubjectController.updateSubject); // Placeholder for audio upload
 
@@ -174,14 +174,16 @@ router.post('/violations', adminAuth, checkPermission('exams', 'edit'), adminExa
 // ============================================
 router.get('/students', adminAuth, checkPermission('students', 'view'), adminStudentController.getAllStudents);
 router.get('/students/search', adminAuth, checkPermission('students', 'view'), adminStudentController.searchStudents);
+// IMPORTANT: /export must come BEFORE /:id to prevent Express from treating "export" as an :id
+router.get('/students/export', adminAuth, checkPermission('students', 'view'), adminStudentController.exportStudentsPDF);
 router.post('/students/:id/block', adminAuth, checkPermission('students', 'block'), adminStudentController.blockStudent);
 router.post('/students/:id/unblock', adminAuth, checkPermission('students', 'unblock'), adminStudentController.unblockStudent);
 router.post('/students/:id/reset-device', adminAuth, checkPermission('students', 'unblock'), adminStudentController.resetDevice);
 router.post('/students/unblock-device', adminAuth, checkPermission('students', 'unblock'), adminStudentController.unblockDevice);
 router.post('/students/unblock-email', adminAuth, checkPermission('students', 'unblock'), adminStudentController.unblockEmail);
+router.delete('/students/all', adminAuth, checkPermission('students', 'delete'), adminStudentController.deleteAllStudents);
 router.delete('/students/:id', adminAuth, checkPermission('students', 'delete'), adminStudentController.deleteStudent);
 router.get('/students/:id/activity', adminAuth, checkPermission('students', 'view'), adminStatsController.getStudentLogs);
-router.get('/students/export', adminAuth, checkPermission('students', 'view'), adminStudentController.exportStudentsPDF);
 
 // ============================================
 // Question Bank Routes (بنك الأسئلة المركزي)
@@ -210,8 +212,14 @@ router.post('/notifications', adminAuth, checkPermission('notifications', 'send'
 // ============================================
 router.get('/stats/dashboard', adminAuth, checkPermission('stats', 'view'), adminStatsController.getDashboardStats);
 
-// Diagnostic Route
+// Diagnostic Route (Super Admin Only)
 router.get('/system/status', adminAuth, (req, res) => {
+  // Only super admins should see system diagnostics
+  const isSuperAdmin = req.admin.is_super_admin === true || req.admin.is_super_admin === 'true';
+  if (!isSuperAdmin) {
+    return res.status(403).json({ success: false, message: 'صلاحية المدير العام مطلوبة' });
+  }
+
   const fs = require('fs');
   const path = require('path');
   
@@ -228,21 +236,17 @@ router.get('/system/status', adminAuth, (req, res) => {
   res.json({
     success: true,
     server_time: new Date().toISOString(),
-    version: '2026-04-01-v5-diagnostic',
+    version: '2.1.0-secured',
     env: process.env.NODE_ENV,
     storage: {
-      temp_dir: uploadDir,
-      exists: dirExists,
-      writable: dirWritable
+      temp_available: dirExists,
+      temp_writable: dirWritable
     },
-    security_state: {
-      integrity_bypass: true,
-      signature_bypass: true,
-      waf_bypass: true
-    }
+    security_state: 'active'
   });
 });
 router.get('/stats/activity', adminAuth, checkPermission('stats', 'view'), adminStatsController.getActivityLogs);
+router.delete('/stats/activity/all', adminAuth, checkPermission('stats', 'delete'), adminStatsController.deleteAllActivityLogs);
 router.get('/stats/predictive', adminAuth, checkPermission('stats', 'view'), adminStatsController.getPredictiveAnalysis);
 
 // ============================================

@@ -340,17 +340,6 @@ const resetIPBlacklist = async (req, res) => {
   }
 };
 
-const factoryReset = async (req, res) => {
-  try {
-    await pool.query('TRUNCATE security_audit_logs RESTART IDENTITY');
-    await pool.query('TRUNCATE system_errors RESTART IDENTITY');
-    await pool.query('TRUNCATE ip_blacklist RESTART IDENTITY');
-    res.json({ success: true, message: 'تمت إعادة ضبط المصنع بنجاح. جميع السجلات الأمنية تم مسحها.' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
 module.exports = {
   getSecurityDashboardStats,
   getSystemErrors,
@@ -366,6 +355,5 @@ module.exports = {
   getSystemSettings,
   updateSystemSetting,
   clearOldLogs,
-  resetIPBlacklist,
-  factoryReset
+  resetIPBlacklist
 };

@@ -76,9 +76,9 @@ class Exam {
         exam.is_locked = false;
       }
 
-      // الحصول على الأسئلة (مع الإجابة الصحيحة للتقييم اللحظي)
+      // الحصول على الأسئلة (مع الإجابة الصحيحة والتفسير للتقييم اللحظي بناءً على طلب المستخدم)
       const questionsResult = await client.query(
-        'SELECT id, question_text, type, options, question_order, explanation, correct_answer FROM questions WHERE exam_id = $1 ORDER BY question_order ASC',
+        'SELECT id, question_text, type, options, correct_answer, explanation, question_order FROM questions WHERE exam_id = $1 ORDER BY question_order ASC',
         [examId]
       );
 
@@ -436,15 +436,22 @@ class Exam {
 
   // تحديث امتحان
   static async update(examId, updates) {
+    // SECURITY: Whitelist allowed columns to prevent SQL injection
+    const allowedColumns = ['subject_id', 'level', 'name', 'title', 'description', 'time_limit', 'passing_score', 'points', 'start_date', 'end_date', 'is_published', 'status'];
+    
     const fields = [];
     const values = [];
     let paramIndex = 1;
 
     Object.keys(updates).forEach(key => {
-      fields.push(`${key} = $${paramIndex}`);
-      values.push(updates[key]);
-      paramIndex++;
+      if (allowedColumns.includes(key)) {
+        fields.push(`${key} = $${paramIndex}`);
+        values.push(updates[key]);
+        paramIndex++;
+      }
     });
+
+    if (fields.length === 0) return null;
 
     values.push(examId);
 

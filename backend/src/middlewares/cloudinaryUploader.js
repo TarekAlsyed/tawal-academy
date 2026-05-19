@@ -8,21 +8,16 @@ const path = require('path');
 // Use Disk Storage for better reliability with large files on shared hosting
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        // Try system /tmp first, fallback to local uploads/temp
-        let uploadDir = '/tmp';
+        // Try local uploads/temp first (more reliable on AlwaysData/Shared Hosting)
+        let uploadDir = path.resolve(__dirname, '../../uploads/temp');
         
-        // Check if /tmp is writable, if not use local path
-        try {
-            fs.accessSync(uploadDir, fs.constants.W_OK);
-        } catch (e) {
-            uploadDir = path.resolve(__dirname, '../../uploads/temp');
-        }
-            
+        // Ensure directory exists
         if (!fs.existsSync(uploadDir)) {
             try {
                 fs.mkdirSync(uploadDir, { recursive: true });
             } catch (err) {
-                console.error('[STORAGE ERROR] Failed to create temp directory:', err.message);
+                console.error('[STORAGE ERROR] Failed to create local temp directory, falling back to /tmp:', err.message);
+                uploadDir = '/tmp';
             }
         }
         cb(null, uploadDir);
@@ -38,8 +33,16 @@ const storage = multer.diskStorage({
 const uploadToCloudinary = async (req, res, next) => {
     try {
         if (!req.files && !req.file) return next();
+        // Fixed: Ensure all files from all fields (cover, pdfs, images, etc.) are processed
+        let files = [];
+        if (Array.isArray(req.files)) {
+            files = req.files;
+        } else if (req.files && typeof req.files === 'object') {
+            files = Object.values(req.files).flat();
+        } else if (req.file) {
+            files = [req.file];
+        }
 
-        const files = Array.isArray(req.files) ? req.files : (req.files?.pdfs || req.files?.images || [req.file].filter(Boolean));
         if (files.length === 0) return next();
 
         console.log(`[CLOUDINARY] Starting sequential upload for ${files.length} files...`);
@@ -56,8 +59,11 @@ const uploadToCloudinary = async (req, res, next) => {
             let subjectName = req.body.name || req.body.title;
             if (!subjectName && subjectId) {
                 try {
-                    subjectName = await Subject.getNameById(subjectId);
-                } catch (err) {}
+                    const subject = await Subject.findById(subjectId);
+                    if (subject) subjectName = subject.name;
+                } catch (err) {
+                    console.error('[CLOUDINARY] Failed to fetch subject name:', err.message);
+                }
             }
             if (!subjectName) subjectName = subjectId || 'unnamed_subject';
 
@@ -66,52 +72,63 @@ const uploadToCloudinary = async (req, res, next) => {
                 .replace(/\s+/g, '_').substring(0, 30);
 
             const isPDF = file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf');
+            // PDF resource type should ideally be 'image' in Cloudinary to support page extraction and overlays
+            // but 'auto' usually works fine. We'll stick with 'auto' but ensure robust options.
             const folder = `tawal_academy/subjects/${sanitizedName}/${isPDF ? 'pdfs' : 'images'}`;
             const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
             const publicId = `${file.fieldname}-${uniqueSuffix}`;
 
             console.log(`[CLOUDINARY] Uploading file: ${file.originalname} (${file.size} bytes) to folder: ${folder}`);
 
-            // 2. Upload to Cloudinary using Stream
-            const fileStream = fs.createReadStream(file.path);
+            // 2. Upload to Cloudinary directly from disk (Most reliable for shared hosting)
+            // Use upload_large if file is over 10MB, otherwise standard upload
+            const isLarge = file.size > 10 * 1024 * 1024;
             
-            await new Promise((resolve, reject) => {
-                const uploadStream = cloudinary.uploader.upload_stream(
-                    {
-                        folder: folder,
-                        public_id: publicId,
-                        resource_type: isPDF ? 'image' : 'auto', // PDF must be 'image' to support overlays
-                        format: isPDF ? 'pdf' : undefined, // Force 'pdf' format for PDF files
-                        access_mode: 'public',
-                        timeout: 120000,
-                        transformation: isPDF ? [] : [
-                            { width: 1200, crop: 'limit' },
-                            { quality: 'auto' },
-                            { fetch_format: 'auto' }
-                        ]
-                    },
-                    (error, result) => {
-                        // Cleanup local temp file
-                        try {
-                            if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-                        } catch (e) {
-                            console.error('[CLEANUP ERROR]:', e.message);
-                        }
+            const uploadOptions = {
+                folder: folder,
+                public_id: publicId,
+                resource_type: 'auto', // Cloudinary handles PDFs as 'image' internally for transformations
+                access_mode: 'public',
+                timeout: 600000, // 10 minutes
+                use_filename: true,
+                unique_filename: true,
+                overwrite: true,
+                chunk_size: isLarge ? 6000000 : undefined,
+                // Transformation is only applied to images
+                transformation: isPDF ? [] : [
+                    { width: 1200, crop: 'limit' },
+                    { quality: 'auto' },
+                    { fetch_format: 'auto' }
+                ]
+            };
 
-                        if (error) {
-                            console.error('[CLOUDINARY ERROR]:', error);
-                            reject(error);
-                        } else {
-                            file.path = result.secure_url;
-                            file.cloudinary_public_id = result.public_id;
-                            console.log(`[CLOUDINARY] Success: ${file.originalname} -> ${result.secure_url}`);
-                            resolve(result);
-                        }
-                    }
-                );
+            let result;
+            try {
+                result = isLarge 
+                    ? await cloudinary.uploader.upload_large(file.path, uploadOptions)
+                    : await cloudinary.uploader.upload(file.path, uploadOptions);
+                
+                console.log(`[CLOUDINARY] Success: ${file.originalname} -> ${result.secure_url}`);
+            } catch (uploadErr) {
+                console.error(`[CLOUDINARY ERROR] Failed to upload ${file.originalname}:`, uploadErr.message);
+                // Attempt one retry for smaller files if it's a timeout
+                if (!isLarge && uploadErr.message.includes('timeout')) {
+                    console.log(`[CLOUDINARY] Retrying ${file.originalname} once...`);
+                    result = await cloudinary.uploader.upload(file.path, uploadOptions);
+                } else {
+                    throw uploadErr;
+                }
+            }
 
-                fileStream.pipe(uploadStream);
-            });
+            // Cleanup local temp file
+            try {
+                if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+            } catch (e) {
+                console.error('[CLEANUP ERROR]:', e.message);
+            }
+
+            file.path = result.secure_url;
+            file.cloudinary_public_id = result.public_id;
         }
 
         console.log('[CLOUDINARY] All files uploaded successfully.');
@@ -127,18 +144,38 @@ const uploadToCloudinary = async (req, res, next) => {
                 }
             });
         }
-        res.status(500).json({ success: false, message: 'فشل رفع الملفات إلى السحابة', error: error.message });
+        res.status(500).json({ 
+            success: false, 
+            message: 'فشل رفع الملفات إلى السحابة'
+        });
     }
 };
 
 const upload = multer({ 
     storage: storage,
     limits: {
-        fileSize: 500 * 1024 * 1024, // 500MB
+        fileSize: 50 * 1024 * 1024, // 50MB
     },
     fileFilter: (req, file, cb) => {
-        // More permissive filter to avoid 400 errors with some browsers
-        cb(null, true);
+        const path = require('path');
+        const allowedExtensions = /jpeg|jpg|png|gif|pdf|xlsx|xls|docx|doc|mp3|wav|ogg/;
+        const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
+        
+        const allowedMimeTypes = [
+            'image/jpeg', 'image/png', 'image/gif',
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/msword',
+            'audio/mpeg', 'audio/wav', 'audio/ogg'
+        ];
+        const mimetype = allowedMimeTypes.includes(file.mimetype);
+
+        if (extname && mimetype) {
+            return cb(null, true);
+        }
+        cb(new Error('نوع الملف غير مسموح به.'));
     }
 });
 

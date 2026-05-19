@@ -14,14 +14,15 @@ const monitoringRoutes = require('./monitoringRoutes');
 const { upload } = require('../middlewares/upload');
 const ImageStorageService = require('../services/imageStorageService');
 const auth = require('../middlewares/auth');
+const { adminAuth } = require('../middlewares/adminAuth');
 const deviceCheck = require('../middlewares/deviceCheck');
 
 router.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Route to upload course background using Elite Permanent Storage System
-router.post('/upload-course-background', upload.single('image'), async (req, res) => {
+// Route to upload course background using Elite Permanent Storage System (Admin only)
+router.post('/upload-course-background', adminAuth, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({

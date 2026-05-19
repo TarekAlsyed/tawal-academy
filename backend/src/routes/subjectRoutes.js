@@ -27,9 +27,9 @@ router.get('/:id/certificate', auth, subjectController.getCertificate);
 router.post('/:id/rate', auth, subjectController.rateSubject);
 
 // Download PDF
-router.post('/:subjectId/pdfs/:pdfId/download', auth, subjectController.downloadPDF);
+router.get('/:subjectId/pdfs/:pdfId/download', auth, subjectController.downloadPDF);
 
 // View Image
-router.post('/:subjectId/images/:imageId/view', auth, subjectController.viewImage);
+router.get('/:subjectId/images/:imageId/view', auth, subjectController.viewImage);
 
 module.exports = router;

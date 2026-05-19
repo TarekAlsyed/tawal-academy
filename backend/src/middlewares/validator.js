@@ -27,8 +27,7 @@ exports.studentLoginValidation = [
 // Subjects
 exports.subjectValidation = [
   body('name').notEmpty().withMessage('اسم المادة مطلوب'),
-  body('level').isInt().withMessage('المستوى يجب أن يكون رقمًا صحيحًا'),
-  body('term_id').isInt().withMessage('معرف الترم يجب أن يكون رقمًا صحيحًا'),
+  body('termId').isInt().withMessage('معرف الترم يجب أن يكون رقمًا صحيحًا'),
 ];
 
 // Exams

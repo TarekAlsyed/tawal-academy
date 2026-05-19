@@ -295,12 +295,18 @@ class Subject {
     const fields = [];
     const values = [];
     let paramIndex = 1;
+    // SECURITY: Whitelist allowed columns
+    const allowedColumns = ['term_id', 'name', 'description', 'cover_image', 'status', 'scheduled_at'];
 
     Object.keys(updates).forEach(key => {
-      fields.push(`${key} = $${paramIndex}`);
-      values.push(updates[key]);
-      paramIndex++;
+      if (allowedColumns.includes(key)) {
+        fields.push(`${key} = $${paramIndex}`);
+        values.push(updates[key]);
+        paramIndex++;
+      }
     });
+
+    if (fields.length === 0) return null;
 
     values.push(subjectId);
 

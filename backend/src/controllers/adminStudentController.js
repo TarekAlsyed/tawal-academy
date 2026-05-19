@@ -32,13 +32,17 @@ exports.getAllStudents = async (req, res, next) => {
   try {
     const { limit = 50, offset = 0 } = req.query;
     
-    const result = await pool.query(
+      const result = await pool.query(
       `SELECT u.id, u.name, u.email, u.total_points, u.registration_date, u.last_login, u.is_blocked, u.device_id,
-              CASE WHEN u.is_blocked THEN 'blocked' ELSE 'active' END as status,
+              CASE 
+                WHEN u.is_blocked THEN 'blocked' 
+                WHEN u.last_active_at IS NOT NULL AND u.last_active_at > CURRENT_TIMESTAMP - INTERVAL '2 minutes' THEN 'active' 
+                ELSE 'inactive' 
+              END as status,
               EXISTS (SELECT 1 FROM blocked_list WHERE email = u.email) as is_email_blocked,
               EXISTS (SELECT 1 FROM blocked_list WHERE device_id = u.device_id AND u.device_id IS NOT NULL) as is_device_blocked
        FROM users u
-       ORDER BY u.total_points DESC
+       ORDER BY u.registration_date DESC
        LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
@@ -81,12 +85,16 @@ exports.searchStudents = async (req, res, next) => {
 
     const result = await pool.query(
       `SELECT u.id, u.name, u.email, u.total_points, u.registration_date, u.last_login, u.is_blocked, u.device_id,
-              CASE WHEN u.is_blocked THEN 'blocked' ELSE 'active' END as status,
+              CASE 
+                WHEN u.is_blocked THEN 'blocked' 
+                WHEN u.last_active_at IS NOT NULL AND u.last_active_at > CURRENT_TIMESTAMP - INTERVAL '2 minutes' THEN 'active' 
+                ELSE 'inactive' 
+              END as status,
               EXISTS (SELECT 1 FROM blocked_list WHERE email = u.email) as is_email_blocked,
               EXISTS (SELECT 1 FROM blocked_list WHERE device_id = u.device_id AND u.device_id IS NOT NULL) as is_device_blocked
        FROM users u
        WHERE u.name ILIKE $1 OR u.email ILIKE $1
-       ORDER BY u.total_points DESC`,
+       ORDER BY u.registration_date DESC`,
       [`%${query}%`]
     );
 
@@ -178,8 +186,12 @@ exports.unblockDevice = async (req, res, next) => {
 exports.resetDevice = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const Admin = require('../models/Admin');
 
-    await pool.query('UPDATE users SET device_id = NULL WHERE id = $1', [id]);
+    await pool.query('UPDATE users SET device_id = NULL, fingerprint = NULL WHERE id = $1', [id]);
+
+    // Log the activity for audit trail
+    await Admin.logActivity(req.admin.id, 'reset_student_device', { studentId: id }, req.ip);
 
     res.json({
       success: true,
@@ -202,6 +214,32 @@ exports.deleteStudent = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+};
+
+exports.deleteAllStudents = async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // حذف جميع الطلاب من جدول users
+    // سيتم حذف المخالفات والنتائج المرتبطة تلقائياً بسبب ON DELETE CASCADE في معظم الجداول
+    // لكننا لا نحذفهم من blocked_list للسماح لهم بالتسجيل مجدداً إذا رغبوا (حسب طلب المستخدم)
+    // ملاحظة: blocked_list عادة ما يحتوي على email أو device_id، وحذف الطالب من users لا يحذفه من هناك.
+    
+    await client.query('DELETE FROM users');
+    
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      message: 'تم حذف جميع الطلاب بنجاح. يمكنهم الآن التسجيل من جديد.'
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally {
+    client.release();
   }
 };
 

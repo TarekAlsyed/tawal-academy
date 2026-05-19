@@ -86,6 +86,24 @@ exports.getActivityLogs = async (req, res, next) => {
   }
 };
 
+exports.deleteAllActivityLogs = async (req, res, next) => {
+  try {
+    // Only super admins should be able to clear all logs for safety
+    if (!req.admin.is_super_admin) {
+      return res.status(403).json({ success: false, message: 'عذراً، هذا الإجراء متاح فقط للمدير العام' });
+    }
+
+    await pool.query('DELETE FROM activity_log');
+    
+    res.json({
+      success: true,
+      message: 'تم حذف سجل النشاط بالكامل بنجاح'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ============================================
 // Elite SOC Controllers
 // ============================================
@@ -154,17 +172,22 @@ exports.getStudentLogs = async (req, res, next) => {
     const { id } = req.params;
     const { limit = 50, offset = 0 } = req.query;
     
+    console.log(`[DEBUG] Fetching logs for student ID: ${id}`);
+    
     const logs = await ActivityLog.findAll({
       limit: parseInt(limit),
       offset: parseInt(offset),
-      userId: parseInt(id)
+      userId: id // نمرر الـ ID كما هو بدون تحويل لـ int هنا لضمان عدم حدوث خطأ إذا كان string
     });
+
+    console.log(`[DEBUG] Found ${logs.length} logs for student ID: ${id}`);
 
     res.json({
       success: true,
       data: { logs }
     });
   } catch (error) {
+    console.error(`[DEBUG ERROR] getStudentLogs: ${error.message}`);
     next(error);
   }
 };

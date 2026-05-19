@@ -231,57 +231,27 @@ exports.downloadPDF = async (req, res, next) => {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : (req.headers['x-forwarded-proto'] || req.protocol);
     let host = req.get('host');
     
-    // For production (Fly.io), we want to ensure it's the backend URL
-    if (process.env.NODE_ENV === 'production') {
-        host = 'tawal-academy-backend.fly.dev';
+    // For production, use the configured backend URL
+    if (process.env.NODE_ENV === 'production' && process.env.BACKEND_URL) {
+        try { host = new URL(process.env.BACKEND_URL).host; } catch(e) {}
     }
 
     const pdfData = pdf.rows[0];
     const fileUrl = pdfData.file_url;
     const hasWatermark = pdfData.has_watermark;
     
-    // If it's already a full URL (like Cloudinary), inject watermark if enabled and return
+    // If it's already a full URL (like Cloudinary), return as is if watermark is not needed
+    // or if it's already a secure cloudinary URL
     if (fileUrl.startsWith('http') || fileUrl.includes('res.cloudinary.com')) {
-      let finalUrl = fileUrl;
-      const isPDF = fileUrl.toLowerCase().includes('.pdf');
+      // In this version, we will NOT modify the URL itself to avoid Cloudinary transformation errors (White Screen)
+      // Instead, we rely COMPLETELY on our robust frontend Secure Overlay system which works on all pages
       
-      // Inject Cloudinary dynamic watermark if it's a Cloudinary URL and watermark is enabled
-      if (finalUrl.includes('res.cloudinary.com') && !finalUrl.includes('/admin/')) {
-        if (hasWatermark && isPDF && !finalUrl.includes('/raw/upload/')) {
-          // Standard and stable watermark transformation
-          // Use a more robust transformation format
-          const watermark = 'l_text:Arial_60_bold:Tawal%20Academy,co_black,o_20/fl_layer_apply,g_center,a_-45/pg_all';
-          
-          if (finalUrl.includes('/upload/')) {
-            const parts = finalUrl.split('/upload/');
-            const versionPart = parts[1].split('/');
-            
-            // Check if there is a version part (starts with 'v' followed by numbers)
-            if (versionPart[0].startsWith('v') && !isNaN(versionPart[0].substring(1))) {
-              finalUrl = `${parts[0]}/upload/${watermark}/${parts[1]}`;
-            } else {
-              finalUrl = `${parts[0]}/upload/${watermark}/${parts[1]}`;
-            }
-          }
-          
-          // Ensure .pdf extension is preserved at the very end
-          if (!finalUrl.toLowerCase().endsWith('.pdf')) {
-            if (finalUrl.includes('?')) {
-              const [urlPart, queryPart] = finalUrl.split('?');
-              finalUrl = `${urlPart}.pdf?${queryPart}`;
-            } else {
-              finalUrl = `${finalUrl}.pdf`;
-            }
-          }
-        }
-      }
-
       return res.json({
         success: true,
         message: pointsAdded ? 'تم إضافة 5 نقاط لرصيدك' : 'تم تحميل الملف',
         data: {
           url: fileUrl,
-          full_url: finalUrl,
+          full_url: fileUrl, // Return the clean, working URL
           has_watermark: hasWatermark
         }
       });
@@ -330,9 +300,9 @@ exports.viewImage = async (req, res, next) => {
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : (req.headers['x-forwarded-proto'] || req.protocol);
     let host = req.get('host');
     
-    // For production (Fly.io), we want to ensure it's the backend URL
-    if (process.env.NODE_ENV === 'production') {
-        host = 'tawal-academy-backend.fly.dev';
+    // For production, use the configured backend URL
+    if (process.env.NODE_ENV === 'production' && process.env.BACKEND_URL) {
+        try { host = new URL(process.env.BACKEND_URL).host; } catch(e) {}
     }
 
     const fileUrl = image.rows[0].file_url;

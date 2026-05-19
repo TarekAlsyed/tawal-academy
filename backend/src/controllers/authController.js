@@ -3,7 +3,7 @@ const User = require('../models/User');
 
 exports.login = async (req, res, next) => {
   try {
-    const { name, email } = req.body;
+    const { name, email, autoLogin = false } = req.body;
     const deviceId = req.deviceId || req.body.deviceId || req.headers['x-device-id'];
     const fingerprint = req.fingerprint || req.headers['x-fingerprint'];
     const userAgent = req.get('User-Agent');
@@ -12,6 +12,16 @@ exports.login = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'الاسم والإيميل مطلوبان'
+      });
+    }
+
+    // Check if user exists for autoLogin
+    const userExists = await User.findByEmail(email);
+    if (autoLogin && !userExists) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'الحساب غير موجود، يرجى تسجيل الدخول يدوياً لأول مرة',
+        requireManualLogin: true 
       });
     }
 
@@ -48,7 +58,7 @@ exports.login = async (req, res, next) => {
     const cookieOptions = {
       httpOnly: true, // Prevent XSS access
       secure: true, // ALWAYS secure in production/staging for HTTPS
-      sameSite: 'strict', // Strong CSRF protection
+      sameSite: 'none', // Required for cross-site (github.io -> alwaysdata.net)
       path: '/' // Ensure cookie is accessible globally
     };
 
@@ -73,6 +83,9 @@ exports.login = async (req, res, next) => {
       maxAge: 30 * 24 * 60 * 60 * 1000
     });
 
+    // Detect if request is from Capacitor mobile app
+    const isCapacitorClient = req.headers['x-platform'] === 'capacitor';
+
     res.json({
       success: true,
       message: 'تم تسجيل الدخول بنجاح',
@@ -83,27 +96,28 @@ exports.login = async (req, res, next) => {
           email: user.email,
           totalPoints: user.total_points || 0
         },
-        accessToken
+        accessToken,
+        // SECURITY: Only send refreshToken in body for Capacitor (WebView can't access HttpOnly cookies)
+        // On web, refreshToken is HttpOnly cookie only — never exposed to JavaScript
+        ...(isCapacitorClient ? { refreshToken } : {})
       }
     });
   } catch (error) {
-    console.error("Login error:", error.message);
-
-    // Handle specific errors with appropriate status codes
-    if (error.message.includes("البريد الإلكتروني غير صالح") || error.message.includes("يجب استخدام بريد Gmail فقط") || error.message.includes("صيغة البريد الإلكتروني غير صحيحة")) {
-      return res.status(400).json({ success: false, message: error.message });
-    }
-
-    if (error.message.includes("محظور") || error.message.includes("جهاز آخر")) {
+    console.error('Login error:', error);
+    
+    // If it's a known validation or security error, return 403 or 400
+    if (error.message.includes('بريد') || error.message.includes('جهاز') || error.message.includes('حظر')) {
       return res.status(403).json({ success: false, message: error.message });
     }
-    next(error);
+
+    res.status(500).json({ success: false, message: 'حدث خطأ في السيرفر، يرجى المحاولة لاحقاً' });
   }
 };
 
 exports.refreshToken = async (req, res, next) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
+    // Accept refresh token from cookies OR request body (Capacitor fallback)
+    const refreshToken = req.cookies.refreshToken || req.body?.refreshToken;
     if (!refreshToken) {
       return res.status(401).json({ success: false, message: 'Refresh token not found' });
     }
@@ -127,7 +141,7 @@ exports.refreshToken = async (req, res, next) => {
     res.cookie('accessToken', accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 15 * 60 * 1000,
       path: '/'
     });
@@ -173,4 +187,21 @@ exports.logout = async (req, res) => {
     success: true,
     message: 'تم تسجيل الخروج بنجاح'
   });
+};
+
+exports.heartbeat = async (req, res, next) => {
+  const pool = require('../config/database');
+  try {
+    const userId = req.user.id;
+    await pool.query('UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = $1', [userId]);
+    res.json({ success: true });
+  } catch (error) {
+    // If column doesn't exist, log warning but don't try to ALTER TABLE at runtime
+    // Schema changes should be handled by migration scripts only
+    if (error.code === '42703') {
+      console.warn('[HEARTBEAT] last_active_at column missing. Run migrations to fix.');
+      return res.json({ success: true });
+    }
+    next(error);
+  }
 };

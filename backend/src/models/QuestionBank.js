@@ -61,12 +61,18 @@ class QuestionBank {
     const values = [];
     let i = 1;
 
+    // SECURITY: Whitelist allowed columns
+    const allowedColumns = ['subject_id', 'question_text', 'type', 'options', 'correct_answer', 'explanation', 'difficulty_level', 'tags'];
+
     for (const key of Object.keys(updates)) {
-      const val = (key === 'options' || key === 'tags') ? JSON.stringify(updates[key]) : updates[key];
-      fields.push(`${key} = $${i}`);
-      values.push(val);
-      i++;
+      if (allowedColumns.includes(key)) {
+        const val = (key === 'options' || key === 'tags') ? JSON.stringify(updates[key]) : updates[key];
+        fields.push(`${key} = $${i}`);
+        values.push(val);
+        i++;
+      }
     }
+    if (fields.length === 0) return null;
     values.push(id);
     const result = await pool.query(
       `UPDATE question_bank SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${i} RETURNING *`,
@@ -110,11 +116,8 @@ class QuestionBank {
 
       // 3. نسخ السؤال إلى جدول questions الخاص بالامتحان
       // أضفنا حقل question_bank_id لجدول questions لسهولة التتبع ومنع التكرار
-      try {
-        await client.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS question_bank_id INTEGER`);
-      } catch (alterErr) {
-        console.log('Column question_bank_id might already exist or table is being modified');
-      }
+      // NOTE: question_bank_id column should be added via migration script
+      // ALTER TABLE questions ADD COLUMN IF NOT EXISTS question_bank_id INTEGER
 
       const result = await client.query(
         `INSERT INTO questions (exam_id, question_text, type, options, correct_answer, explanation, question_order, points, question_bank_id)

@@ -16,13 +16,15 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Verify critical environment variables
-const criticalEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
+const criticalEnvVars = ['DATABASE_URL', 'JWT_SECRET', 'APP_SECRET', 'APP_SIGNATURE'];
 criticalEnvVars.forEach(varName => {
   if (!process.env[varName]) {
     console.error(`❌ CRITICAL ERROR: Environment variable ${varName} is missing!`);
     if (process.env.NODE_ENV === 'production') {
-      // In production, we might want to exit if critical vars are missing
-      // process.exit(1); 
+      console.error(`   The server will now exit to prevent security vulnerabilities.`);
+      process.exit(1); 
+    } else {
+      console.warn(`⚠️  WARNING: Using development defaults for ${varName} is NOT RECOMMENDED.`);
     }
   }
 });
@@ -39,8 +41,8 @@ const IP = process.env.IP || '0.0.0.0'; // Support AlwaysData IP or default to 0
 const uploadRoutes = require('./routes/uploadRoutes');
 
 // 1. Basic body parsers - CRITICAL: Needed BEFORE security integrity checks
-app.use(express.json({ limit: '100mb' })); 
-app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+app.use(express.json({ limit: '10mb' })); 
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // 2. Apply Advanced Security Configuration (WAF, Logging, Throttling, etc.)
@@ -62,28 +64,52 @@ app.use((req, res, next) => {
 app.get('/api/health', (req, res) => {
   res.status(200).json({ 
     status: 'ok', 
-    service: 'tawal-academy-backend', 
-    version: '2026-04-05-v15-student-exam-visibility-fix',
-    build_time: '2026-04-05 18:00:00'
+    service: 'tawal-academy-backend',
+    version: '2.1.0-secured',
+    updated: '2026-04-25'
   });
 });
 
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', service: 'tawal-academy-backend' });
+  res.status(200).json({ status: 'ok', service: 'tawal-academy-backend', version: '2.1.0-secured' });
 });
 
 app.get('/', (req, res) => {
-  res.status(200).send('Tawal Academy API is Running');
+  res.status(200).send('Tawal Academy API v2.1.0-secured is Running ✅');
 });
 
-// 2. Debug logging middleware
+// Prevent caching of API responses (security: avoid sensitive data leaking via cache)
+app.use('/api', (req, res, next) => {
+  if (!req.url.includes('/uploads')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+  }
+  next();
+});
+
+// 2. Request logging middleware (reduced in production)
 app.use((req, res, next) => {
+  // Set global timeout for large uploads (15 minutes)
+  if (req.url.includes('/pdfs') || req.url.includes('/images') || req.url.includes('/upload')) {
+    req.setTimeout(900000);
+    res.setTimeout(900000);
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Keep-Alive', 'timeout=900, max=100');
+  }
+  
   const start = Date.now();
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.get('Origin') || 'No Origin'} - Content-Length: ${req.get('Content-Length') || 'N/A'}`);
+  
+  // In production, only log on finish (and only slow/error requests)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.get('Origin') || 'No Origin'}`);
+  }
   
   res.on('finish', () => {
     const duration = Date.now() - start;
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Status: ${res.statusCode} - Duration: ${duration}ms`);
+    // In production, only log slow (>2s) or error responses
+    if (process.env.NODE_ENV !== 'production' || duration > 2000 || res.statusCode >= 400) {
+      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - ${res.statusCode} - ${duration}ms`);
+    }
   });
   
   next();
@@ -146,7 +172,6 @@ app.use('/uploads', async (req, res, next) => {
 app.use('/api', uploadRoutes);
 app.use('/api', routes);
 
-// (Remove duplicate / and /api/health)
 
 app.use((req, res) => {
   res.status(404).json({
@@ -156,6 +181,41 @@ app.use((req, res) => {
 });
 
 app.use(errorHandler);
+
+// ============================================
+// 📊 Database & Services Initialization
+// ============================================
+const initApp = async () => {
+  try {
+    console.log('🔄 Running security schema upgrades...');
+    const upgradeSecuritySchema = require('./migrations/upgrade-security-schema');
+    await upgradeSecuritySchema();
+    
+    console.log('🔄 Initializing database tables...');
+    await createTables();
+    console.log('🔄 Initializing database indexes...');
+    await createIndexes();
+    console.log('✅ Database initialization complete.');
+    
+    // Start Monitoring Service (24/7) ONLY after DB is ready
+    console.log('🔄 Starting Monitor Service...');
+    if (monitorService && typeof monitorService.start === 'function') {
+      monitorService.start();
+    }
+
+    // Start Memory Monitoring if not in production
+    if (process.env.NODE_ENV !== 'production') {
+      const { startMemoryMonitoring } = require('./services/memoryMonitor');
+      startMemoryMonitoring();
+    }
+  } catch (dbError) {
+    console.error('❌ Database initialization/Monitoring failed:', dbError.message);
+    // We don't exit, we want the server to stay alive to receive health checks
+  }
+};
+
+// Run initialization immediately (Non-blocking)
+initApp();
 
 if (require.main === module) {
   // Start server listening on IP and PORT (Required for AlwaysData)
@@ -170,30 +230,6 @@ if (require.main === module) {
     console.log(`📊 Health Check: http://${IP === '0.0.0.0' ? 'localhost' : IP}:${PORT}/api/health`);
     console.log('🚀 ════════════════════════════════════════════════════════');
     console.log('');
-
-    // Background initialization
-    try {
-      console.log('🔄 Initializing database tables...');
-      await createTables();
-      console.log('🔄 Initializing database indexes...');
-      await createIndexes();
-      console.log('✅ Database initialization complete.');
-      
-      // Start Monitoring Service (24/7) ONLY after DB is ready
-      console.log('🔄 Starting Monitor Service...');
-      if (monitorService && typeof monitorService.start === 'function') {
-        monitorService.start();
-      }
-
-      // Start Memory Monitoring if not in production
-      if (process.env.NODE_ENV !== 'production') {
-        const { startMemoryMonitoring } = require('./services/memoryMonitor');
-        startMemoryMonitoring();
-      }
-    } catch (dbError) {
-      console.error('❌ Database initialization/Monitoring failed:', dbError.message);
-      // We don't exit, we want the server to stay alive to receive health checks
-    }
   });
 
   // Increase timeout for large file uploads (10 minutes)

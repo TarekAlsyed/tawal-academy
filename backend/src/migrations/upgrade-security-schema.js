@@ -96,6 +96,29 @@ const upgradeSecuritySchema = async () => {
     `);
     console.log('✅ Added has_watermark column to pdfs table');
 
+    // 7. Repair activity_log table to support student (user_id) tracking
+    await client.query(`
+      ALTER TABLE activity_log 
+      ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    `);
+    // Also make admin_id nullable in case it was not
+    await client.query(`
+      ALTER TABLE activity_log 
+      ALTER COLUMN admin_id DROP NOT NULL
+    `);
+    console.log('✅ Repaired activity_log table for student tracking');
+
+    // 8. Reset all PDF downloads and Image views to zero
+    await client.query(`
+      UPDATE pdfs SET downloads_count = 0
+    `);
+    console.log('✅ Reset all PDF downloads_count to 0');
+
+    await client.query(`
+      UPDATE images SET views_count = 0
+    `);
+    console.log('✅ Reset all Image views_count to 0');
+
     await client.query('COMMIT');
     console.log('✨ Security Schema Upgrade Completed Successfully!');
   } catch (err) {

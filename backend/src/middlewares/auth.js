@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
 const settingsService = require('../services/settingsService');
+const { decrypt } = require('../utils/encryption');
 
 const auth = async (req, res, next) => {
   try {
@@ -62,14 +63,19 @@ const auth = async (req, res, next) => {
 
     // Device check (Highly Secure)
     const deviceId = req.headers['x-device-id'] || req.cookies.deviceId;
-    const { decrypt } = require('../utils/encryption');
-    const decryptedUserDeviceId = decrypt(user.device_id);
-
-    if (user.device_id && decryptedUserDeviceId !== deviceId) {
-       return res.status(403).json({
-         success: false,
-         message: 'هذا الحساب مرتبط بجهاز آخر'
-       });
+    
+    if (user.device_id) {
+      const decryptedUserDeviceId = decrypt(user.device_id);
+      
+      // If decryption failed (key rotation or corruption), log but don't block
+      if (decryptedUserDeviceId === null) {
+        console.warn(`[AUTH WARNING] Failed to decrypt device_id for user ${user.id}. Possible key rotation.`);
+      } else if (deviceId && decryptedUserDeviceId !== deviceId) {
+        return res.status(403).json({
+          success: false,
+          message: 'هذا الحساب مرتبط بجهاز آخر'
+        });
+      }
     }
 
     req.user = user;

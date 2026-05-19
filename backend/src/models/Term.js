@@ -43,11 +43,16 @@ class Term {
     const fields = [];
     const values = [];
     let i = 1;
+    // SECURITY: Whitelist allowed columns
+    const allowedColumns = ['name', 'is_published'];
     for (const key of Object.keys(updates)) {
-      fields.push(`${key} = $${i}`);
-      values.push(updates[key]);
-      i++;
+      if (allowedColumns.includes(key)) {
+        fields.push(`${key} = $${i}`);
+        values.push(updates[key]);
+        i++;
+      }
     }
+    if (fields.length === 0) return null;
     values.push(id);
     const result = await pool.query(
       `UPDATE terms SET ${fields.join(', ')} WHERE id = $${i} RETURNING *`,

@@ -1,6 +1,7 @@
 const Subject = require('../models/Subject');
 const Admin = require('../models/Admin');
 const PendingApproval = require('../models/PendingApproval');
+const pool = require('../config/database');
 const fs = require('fs');
 const path = require('path');
 
@@ -112,9 +113,10 @@ exports.addPDFs = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { has_watermark } = req.body;
-    const shouldWatermark = has_watermark === 'true' || has_watermark === true;
+    // Default to true if not explicitly provided as false or 'false'
+    const shouldWatermark = has_watermark !== 'false' && has_watermark !== false;
     
-    console.log(`[UPLOAD DEBUG] Starting PDF upload for subject ${id}. has_watermark: ${shouldWatermark}`);
+    console.log(`[UPLOAD DEBUG] Starting PDF upload for subject ${id}. has_watermark: ${shouldWatermark} (received: ${has_watermark})`);
     
     // Handle both upload.array and upload.fields
     let files = [];
@@ -136,8 +138,11 @@ exports.addPDFs = async (req, res, next) => {
     const pdfs = files.map(f => {
       let originalName = f.originalname;
       try {
+        // Try to decode UTF-8 if it was mangled by Multer/Latin1
         originalName = Buffer.from(f.originalname, 'latin1').toString('utf8');
-      } catch (e) {}
+      } catch (e) {
+        console.warn(`[UPLOAD] Failed to decode filename: ${f.originalname}`);
+      }
       
       return {
         name: originalName,
@@ -148,31 +153,60 @@ exports.addPDFs = async (req, res, next) => {
 
     const created = [];
     try {
-      for (const pdf of pdfs) {
-        const result = await Subject.addPDF(id, pdf.name, pdf.url, pdf.size, shouldWatermark);
-        created.push(result);
-      }
+        console.log(`[UPLOAD DEBUG] Saving ${pdfs.length} PDF records to database...`);
+        for (const pdf of pdfs) {
+            try {
+                const result = await Subject.addPDF(id, pdf.name, pdf.url, pdf.size, shouldWatermark);
+                created.push(result);
+                console.log(`[UPLOAD DEBUG] Saved PDF: ${pdf.name} (ID: ${result.id})`);
+            } catch (insertErr) {
+                console.error(`[UPLOAD DEBUG] Failed to save PDF ${pdf.name} to DB:`, insertErr.message);
+                throw insertErr;
+            }
+        }
       
-      await Admin.logActivity(req.admin.id, 'upload_pdfs', { subjectId: id, count: created.length }, req.ip);
-      
-      // Notify students about new PDF materials
-      try {
-        const subject = await Subject.findById(id);
-        const students = await pool.query('SELECT id FROM users');
-        const notificationPromises = students.rows.map(student => 
-          pool.query(
-            `INSERT INTO notifications (user_id, message, type, link)
-             VALUES ($1, $2, $3, $4)`,
-            [student.id, `تمت إضافة ${created.length} ملف PDF جديد في مادة: ${subject.name}`, 'new_content', `/#/subjects/${id}`]
-          )
-        );
-        await Promise.all(notificationPromises);
-      } catch (notifyErr) {
-        console.error('Failed to notify students about new PDFs:', notifyErr);
-      }
+        await Admin.logActivity(req.admin.id, 'upload_pdfs', { subjectId: id, count: created.length }, req.ip);
+        
+        // Return response IMMEDIATELY after DB save, BEFORE sending notifications to speed up UI
+        res.status(201).json({ success: true, message: `تم رفع ${created.length} ملف بنجاح`, data: { pdfs: created } });
 
-      console.log(`[UPLOAD DEBUG] Successfully uploaded ${created.length} PDFs to DB`);
-      res.status(201).json({ success: true, message: `تم رفع ${created.length} ملف بنجاح`, data: { pdfs: created } });
+        // Notify students in the background (Don't await to avoid UI hang)
+        (async () => {
+            try {
+                const subject = await Subject.findById(id);
+                const students = await pool.query('SELECT id FROM users WHERE is_blocked = FALSE');
+                
+                if (students.rows.length > 0) {
+                    const message = `تمت إضافة ${created.length} ملف PDF جديد في مادة: ${subject.name}`;
+                    const type = 'new_content';
+                    const link = `/#/subjects/${id}`;
+                    
+                    // Bulk insert notifications in chunks to avoid PostgreSQL parameter limit (65535)
+                    const CHUNK_SIZE = 5000;
+                    for (let i = 0; i < students.rows.length; i += CHUNK_SIZE) {
+                        const chunk = students.rows.slice(i, i + CHUNK_SIZE);
+                        const values = [];
+                        const placeholders = [];
+                        
+                        chunk.forEach((student, index) => {
+                            const base = index * 4;
+                            placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`);
+                            values.push(student.id, message, type, link);
+                        });
+                        
+                        await pool.query(
+                            `INSERT INTO notifications (user_id, message, type, link) VALUES ${placeholders.join(', ')}`,
+                            values
+                        );
+                        console.log(`[UPLOAD] Sent notifications to chunk ${i / CHUNK_SIZE + 1}`);
+                    }
+                }
+            } catch (notifyErr) {
+                console.error('Background Notification Error:', notifyErr.message);
+            }
+        })();
+
+        console.log(`[UPLOAD DEBUG] Successfully completed upload process for subject ${id}`);
     } catch (error) {
       console.error('[UPLOAD DEBUG] Error saving PDFs to database:', error);
       throw error;
@@ -224,15 +258,31 @@ exports.addImages = async (req, res, next) => {
       // Notify students about new image materials
       try {
         const subject = await Subject.findById(id);
-        const students = await pool.query('SELECT id FROM users');
-        const notificationPromises = students.rows.map(student => 
-          pool.query(
-            `INSERT INTO notifications (user_id, message, type, link)
-             VALUES ($1, $2, $3, $4)`,
-            [student.id, `تمت إضافة ${created.length} صور جديدة في مادة: ${subject.name}`, 'new_content', `/#/subjects/${id}`]
-          )
-        );
-        await Promise.all(notificationPromises);
+        const students = await pool.query('SELECT id FROM users WHERE is_blocked = FALSE');
+        
+        if (students.rows.length > 0) {
+          const message = `تمت إضافة ${created.length} صور جديدة في مادة: ${subject.name}`;
+          const type = 'new_content';
+          const link = `/#/subjects/${id}`;
+          
+          // Bulk insert notifications in chunks to avoid PostgreSQL parameter limit
+          const CHUNK_SIZE = 5000;
+          for (let i = 0; i < students.rows.length; i += CHUNK_SIZE) {
+            const chunk = students.rows.slice(i, i + CHUNK_SIZE);
+            const values = [];
+            const placeholders = [];
+            chunk.forEach((student, index) => {
+              const base = index * 4;
+              placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`);
+              values.push(student.id, message, type, link);
+            });
+            
+            await pool.query(
+              `INSERT INTO notifications (user_id, message, type, link) VALUES ${placeholders.join(', ')}`,
+              values
+            );
+          }
+        }
       } catch (notifyErr) {
         console.error('Failed to notify students about new images:', notifyErr);
       }

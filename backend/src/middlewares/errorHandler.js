@@ -1,5 +1,6 @@
 const SystemError = require('../models/SystemError');
 const notificationSender = require('../utils/notificationSender');
+const multer = require('multer');
 
 const errorHandler = async (err, req, res, next) => {
   // تسجيل الخطأ للمطورين دائماً
@@ -27,7 +28,7 @@ const errorHandler = async (err, req, res, next) => {
       userAgent: req.get('User-Agent'),
       params: req.params,
       query: req.query,
-      body: (req.method !== 'GET' && req.body) ? req.body : undefined,
+      body: undefined, // Never store request body in error logs (may contain passwords/tokens)
       status: err.status,
       requestId: req.headers['x-request-id'],
       headers: {
@@ -97,10 +98,15 @@ const errorHandler = async (err, req, res, next) => {
   }
 
   // معالجة أخطاء الملفات
-  if (err.code === 'LIMIT_FILE_SIZE') {
+  if (err instanceof multer.MulterError) {
+    let message = 'حدث خطأ أثناء رفع الملف';
+    if (err.code === 'LIMIT_FILE_SIZE') message = 'حجم الملف كبير جداً (الحد الأقصى 500 ميجا)';
+    if (err.code === 'LIMIT_FILE_COUNT') message = 'عدد الملفات المرفوعة كبير جداً';
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') message = 'حقل غير متوقع في رفع الملفات';
+
     return res.status(400).json({
       success: false,
-      message: 'حجم الملف كبير جداً (الحد الأقصى 10 ميجا)'
+      message
     });
   }
 
@@ -115,8 +121,7 @@ const errorHandler = async (err, req, res, next) => {
 
   res.status(status).json({
     success: false,
-    message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    message
   });
 };
 

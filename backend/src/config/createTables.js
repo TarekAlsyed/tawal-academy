@@ -15,11 +15,16 @@ const createTables = async () => {
         name VARCHAR(255) NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
         device_id VARCHAR(500) NOT NULL,
+        fingerprint TEXT,
         registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         total_points INTEGER DEFAULT 0,
         is_blocked BOOLEAN DEFAULT FALSE,
         blocked_reason TEXT,
         last_login TIMESTAMP,
+        last_ip VARCHAR(100),
+        last_user_agent TEXT,
+        failed_attempts INTEGER DEFAULT 0,
+        last_failed_attempt TIMESTAMP,
         questions_count INTEGER DEFAULT 0,
         last_question_month INTEGER,
         last_question_year INTEGER
@@ -213,19 +218,43 @@ const createTables = async () => {
       CREATE TABLE IF NOT EXISTS blocked_list (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE,
+        ip_address VARCHAR(100),
         device_id VARCHAR(500),
+        fingerprint TEXT,
         reason TEXT,
         blocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        blocked_by INTEGER REFERENCES admins(id)
+        blocked_by INTEGER REFERENCES admins(id),
+        expires_at TIMESTAMP
       )
     `);
     console.log('✅ جدول blocked_list تم إنشاؤه');
+
+    // 16. جدول مخالفات الطلاب
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS student_violations (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        exam_id INTEGER REFERENCES exams(id) ON DELETE CASCADE,
+        violation_type VARCHAR(100) NOT NULL,
+        description TEXT,
+        evidence_url VARCHAR(500),
+        severity VARCHAR(50) DEFAULT 'low',
+        reported_by INTEGER REFERENCES admins(id),
+        action_taken TEXT,
+        details JSONB,
+        ip_address VARCHAR(100),
+        device_id VARCHAR(500),
+        fingerprint TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ جدول student_violations تم إنشاؤه');
 
     await client.query('COMMIT');
     
     console.log('');
     console.log('🎉 تم إنشاء جميع الجداول بنجاح!');
-    console.log('📊 عدد الجداول: 15');
+    console.log('📊 عدد الجداول: 16');
     console.log('');
     
   } catch (error) {

@@ -4,17 +4,21 @@ const authController = require('../controllers/authController');
 const auth = require('../middlewares/auth');
 const deviceCheck = require('../middlewares/deviceCheck');
 const { studentLoginValidation } = require('../middlewares/validator');
+const appOnlyGuard = require('../middlewares/appOnlyGuard');
 
-// Student login
-router.post('/login', studentLoginValidation, deviceCheck, authController.login);
+// Student login — حصرياً من التطبيق فقط
+router.post('/login', appOnlyGuard, studentLoginValidation, deviceCheck, authController.login);
 
-// Refresh token
-router.post('/refresh-token', authController.refreshToken);
+// Refresh token — حصرياً من التطبيق فقط
+router.post('/refresh-token', appOnlyGuard, authController.refreshToken);
 
-// Get profile
-router.get('/profile', auth, authController.getProfile);
+// Get profile — حصرياً من التطبيق فقط
+router.get('/profile', appOnlyGuard, auth, authController.getProfile);
 
-// Logout
-router.post('/logout', auth, authController.logout);
+// Heartbeat (Online status) — حصرياً من التطبيق فقط
+router.post('/heartbeat', appOnlyGuard, auth, authController.heartbeat);
+
+// Logout — حصرياً من التطبيق فقط
+router.post('/logout', appOnlyGuard, auth, authController.logout);
 
 module.exports = router;

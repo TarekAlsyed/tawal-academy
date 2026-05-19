@@ -7,8 +7,8 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL.includes('neon.tech') ? { rejectUnauthorized: false } : false,
-  // 🕒 إعدادات توفير الطاقة (Neon Auto-suspend support)
+  ssl: { rejectUnauthorized: false }, // Supabase pooler uses certs not in Node's trust store; connection is still encrypted
+  // 🕒 إعدادات توفير الطاقة
   max: 10, // تقليل الحد الأقصى للاتصالات لتوفير الموارد
   idleTimeoutMillis: 30000, // إغلاق الاتصالات غير النشطة بعد 30 ثانية (يسمح لـ Neon بالنوم)
   connectionTimeoutMillis: 2000, // وقت انتظار قصير للاتصال الجديد

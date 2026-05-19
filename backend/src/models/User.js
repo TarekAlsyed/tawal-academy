@@ -1,5 +1,6 @@
 const pool = require('../config/database');
 const { validateEmail } = require('../utils/emailValidator');
+const { encrypt } = require('../utils/encryption');
 
 class User {
   static async findOrCreate(name, email, deviceId, fingerprint, ipAddress = null, userAgent = null) {
@@ -33,6 +34,9 @@ class User {
       );
 
       let user;
+      
+      // Encrypt deviceId for secure storage (matches decrypt in auth middleware)
+      const encryptedDeviceId = deviceId ? encrypt(deviceId) : null;
 
       if (existingUser.rows.length > 0) {
         user = existingUser.rows[0];
@@ -61,7 +65,7 @@ class User {
                failed_attempts = 0
            WHERE id = $5 
            RETURNING *`,
-          [deviceId, fingerprint, ipAddress, userAgent, user.id]
+          [encryptedDeviceId, fingerprint, ipAddress, userAgent, user.id]
         );
         user = updateResult.rows[0];
       } else {
@@ -70,7 +74,7 @@ class User {
           `INSERT INTO users (name, email, device_id, fingerprint, last_login, last_ip, last_user_agent)
            VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, $6)
            RETURNING *`,
-          [name, email, deviceId, fingerprint, ipAddress, userAgent]
+          [name, email, encryptedDeviceId, fingerprint, ipAddress, userAgent]
         );
         user = insertResult.rows[0];
       }
@@ -91,6 +95,28 @@ class User {
       [userId]
     );
     return result.rows[0];
+  }
+
+  static async findByEmail(email) {
+    const result = await pool.query(
+      'SELECT id, name, email, total_points FROM users WHERE email = $1',
+      [email]
+    );
+    return result.rows[0];
+  }
+
+  static async logActivity(userId, action, details, ipAddress) {
+    const ActivityLog = require('./ActivityLog');
+    try {
+      await ActivityLog.create({
+        userId,
+        action,
+        details,
+        ipAddress
+      });
+    } catch (err) {
+      console.error('Activity logging failed:', err.message);
+    }
   }
 
   static async findAll(limit = 100, offset = 0) {
@@ -223,23 +249,6 @@ class User {
   static async count() {
     const result = await pool.query('SELECT COUNT(*) as count FROM users');
     return parseInt(result.rows[0].count);
-  }
-
-  static async logActivity(userId, actionType, details = {}, ipAddress = null) {
-    try {
-      const query = `
-        INSERT INTO points_log (user_id, action_type, points, details, created_at)
-        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
-        RETURNING *
-      `;
-      const values = [userId, actionType, 0, JSON.stringify(details)];
-      const result = await pool.query(query, values);
-      return result.rows[0];
-    } catch (error) {
-      console.error('Error logging student activity:', error.message);
-      // Don't throw error to prevent login failure
-      return null;
-    }
   }
 }
 

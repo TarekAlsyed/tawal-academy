@@ -68,7 +68,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 500 * 1024 * 1024, // زيادة الحد لـ 500 ميجابايت لضمان عدم وجود عوائق
+    fileSize: 50 * 1024 * 1024, // 50 ميجابايت حد أقصى للملفات العادية
   },
   fileFilter: fileFilter,
 });
@@ -93,7 +93,7 @@ const audioFileFilter = (req, file, cb) => {
 const uploadAudio = multer({
   storage: storage,
   limits: {
-    fileSize: 500 * 1024 * 1024, // 500MB
+    fileSize: 100 * 1024 * 1024, // 100MB for audio files
   },
   fileFilter: audioFileFilter,
 });

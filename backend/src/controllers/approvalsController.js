@@ -85,12 +85,12 @@ exports.approveRequest = async (req, res, next) => {
         // Generate a fresh token for the current super admin (who is approving)
         // This ensures the executed action has Super Admin privileges (bypassing the approval check)
         const token = jwt.sign(
-            { adminId: req.admin.id, is_system_execution: true },
+            { adminId: req.admin.id, is_system_execution: true, type: 'access' },
             process.env.JWT_SECRET,
             { expiresIn: '1h' }
         );
 
-        const PORT = process.env.PORT || 5000;
+        const PORT = process.env.PORT || 8080;
         // استخدام 127.0.0.1 بدلاً من localhost لضمان الوصول في بيئات Docker/Fly.io
         const BASE_URL = process.env.INTERNAL_API_URL || `http://127.0.0.1:${PORT}`; 
 

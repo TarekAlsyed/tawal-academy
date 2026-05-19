@@ -8,10 +8,17 @@ class ActivityLog {
 
     try {
       const result = await pool.query(
-        `INSERT INTO activity_log (admin_id, user_id, action, details, ip_address)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO activity_log (admin_id, user_id, student_id, action, details, ip_address)
+         VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *`,
-        [adminId || null, userId || null, action, JSON.stringify(details), ipAddress]
+        [
+          adminId || null, 
+          userId || null, 
+          userId || null, // Fill both columns for maximum compatibility
+          action, 
+          JSON.stringify(details), 
+          ipAddress
+        ]
       );
       return result.rows[0];
     } catch (error) {
@@ -33,14 +40,15 @@ class ActivityLog {
     `;
     const params = [];
 
+    if (userId) {
+      params.push(userId);
+      // Safe text-based search to avoid database cast errors (::int)
+      query += ` AND (al.user_id = $${params.length} OR al.student_id = $${params.length} OR (al.details->>'userId' = $${params.length}::text))`;
+    }
+
     if (adminId) {
       params.push(adminId);
       query += ` AND al.admin_id = $${params.length}`;
-    }
-
-    if (userId) {
-      params.push(userId);
-      query += ` AND al.user_id = $${params.length}`;
     }
 
     // Fixed params for limit and offset

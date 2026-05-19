@@ -186,7 +186,7 @@ class Admin {
       }
 
       // تشفير كلمة المرور الجديدة
-      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+      const hashedNewPassword = await bcrypt.hash(newPassword, 12);
 
       await client.query(
         'UPDATE admins SET password = $1 WHERE id = $2',

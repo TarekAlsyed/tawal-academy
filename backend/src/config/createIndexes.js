@@ -83,6 +83,16 @@ const createIndexes = async () => {
     await runQuery('فهرس exam_questions_exam_id', 'CREATE INDEX IF NOT EXISTS idx_exam_questions_exam_id ON exam_questions(exam_id)');
     await runQuery('فهرس exam_questions_bank_id', 'CREATE INDEX IF NOT EXISTS idx_exam_questions_bank_id ON exam_questions(question_bank_id)');
 
+    // 14. Student Violations
+    await runQuery('فهرس student_violations_user_id', 'CREATE INDEX IF NOT EXISTS idx_student_violations_user_id ON student_violations(user_id)');
+    await runQuery('فهرس student_violations_type', 'CREATE INDEX IF NOT EXISTS idx_student_violations_type ON student_violations(violation_type)');
+    await runQuery('فهرس student_violations_created_at', 'CREATE INDEX IF NOT EXISTS idx_student_violations_created_at ON student_violations(created_at)');
+
+    // 15. Blocked List
+    await runQuery('فهرس blocked_list_email', 'CREATE INDEX IF NOT EXISTS idx_blocked_list_email ON blocked_list(email)');
+    await runQuery('فهرس blocked_list_device_id', 'CREATE INDEX IF NOT EXISTS idx_blocked_list_device_id ON blocked_list(device_id)');
+    await runQuery('فهرس blocked_list_fingerprint', 'CREATE INDEX IF NOT EXISTS idx_blocked_list_fingerprint ON blocked_list(fingerprint)');
+
     await client.query('COMMIT');
     console.log('🚀 تمت إضافة جميع الفهارس بنجاح');
   } catch (error) {

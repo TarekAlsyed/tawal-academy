@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
+const Admin = require('../models/Admin');
 const Session = require('../models/Session');
 const settingsService = require('../services/settingsService');
 
@@ -77,14 +78,45 @@ const adminAuth = async (req, res, next) => {
       await Session.updateActivity(decoded.tokenId);
     }
 
-    // Admin Session Binding (IP Check - Highly Secure for Admins)
+    // Admin Session Binding (Subnet-level IP Check - v2.2.0)
+    // Allows minor IP changes (e.g., DHCP renewal within same subnet) while detecting network switches
     const currentIp = req.ip || req.connection.remoteAddress;
-    if (decoded.ip && decoded.ip !== currentIp && !decoded.is_system_execution) {
-        console.warn(`[ADMIN SECURITY] Admin Token IP mismatch: ${decoded.ip} != ${currentIp}`);
-        return res.status(401).json({ 
-          success: false, 
-          message: 'انتهت الجلسة بسبب تغيير في الشبكة. يرجى الدخول مجدداً لأمان حسابك.' 
-        });
+    if (decoded.ip && currentIp && !decoded.is_system_execution) {
+        const isSameSubnet = (() => {
+            try {
+                // Handle IPv4-mapped IPv6 (::ffff:192.168.1.1 → 192.168.1.1)
+                const normalizeIp = (ip) => ip.replace(/^::ffff:/, '');
+                const ip1 = normalizeIp(decoded.ip);
+                const ip2 = normalizeIp(currentIp);
+
+                // IPv4: compare first 3 octets (xxx.xxx.xxx.*)
+                if (ip1.includes('.') && ip2.includes('.')) {
+                    const parts1 = ip1.split('.');
+                    const parts2 = ip2.split('.');
+                    return parts1[0] === parts2[0] && parts1[1] === parts2[1] && parts1[2] === parts2[2];
+                }
+
+                // IPv6: compare first 4 groups (/64 subnet)
+                if (ip1.includes(':') && ip2.includes(':')) {
+                    const groups1 = ip1.split(':').slice(0, 4).join(':');
+                    const groups2 = ip2.split(':').slice(0, 4).join(':');
+                    return groups1 === groups2;
+                }
+
+                // Mixed types — always fail
+                return false;
+            } catch (e) {
+                return false;
+            }
+        })();
+
+        if (!isSameSubnet) {
+            console.warn(`[ADMIN SECURITY] Admin Token subnet mismatch: ${decoded.ip} != ${currentIp}`);
+            return res.status(401).json({ 
+              success: false, 
+              message: 'انتهت الجلسة بسبب تغيير في الشبكة. يرجى الدخول مجدداً لأمان حسابك.' 
+            });
+        }
     }
 
     req.admin = admin;
@@ -146,12 +178,12 @@ const checkPermission = (section, operation = 'view') => {
     }
 
     if (isAllowed) {
-        // إذا كان الطلب يتعلق بالصور، نقوم بالتخطي مباشرة دون طلب موافقة (حفظ تلقائي دائم)
-        const isImageRequest = 
-            (req.originalUrl.includes('/images') || req.originalUrl.includes('/covers')) && 
+        // إذا كان الطلب يتعلق بالصور أو ملفات PDF، نقوم بالتخطي مباشرة دون طلب موافقة (لتجنب تعطل الرفع السحابي)
+        const isFileUploadRequest = 
+            (req.originalUrl.includes('/images') || req.originalUrl.includes('/covers') || req.originalUrl.includes('/pdfs')) && 
             (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH');
 
-        if (requireApproval && !isImageRequest) {
+        if (requireApproval && !isFileUploadRequest) {
             // اعتراض الطلب وحفظه في جدول الموافقات المعلقة
             try {
                 const requestData = {

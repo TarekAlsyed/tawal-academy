@@ -116,12 +116,18 @@ class Question {
       delete updates.option_d;
     }
 
+    // SECURITY: Whitelist allowed columns
+    const allowedColumns = ['question_text', 'type', 'options', 'correct_answer', 'question_order', 'explanation', 'points'];
+
     for (const key of Object.keys(updates)) {
-      const val = key === 'options' ? JSON.stringify(updates[key]) : updates[key];
-      fields.push(`${key} = $${i}`);
-      values.push(val);
-      i++;
+      if (allowedColumns.includes(key)) {
+        const val = key === 'options' ? JSON.stringify(updates[key]) : updates[key];
+        fields.push(`${key} = $${i}`);
+        values.push(val);
+        i++;
+      }
     }
+    if (fields.length === 0) return null;
     values.push(id);
     const result = await pool.query(
       `UPDATE questions SET ${fields.join(', ')} WHERE id = $${i} RETURNING *`,

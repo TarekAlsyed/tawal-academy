@@ -82,12 +82,29 @@ exports.approveRequest = async (req, res, next) => {
 
         const requestData = pendingRequest.entity_data || pendingRequest.request_data; 
 
-        // Generate a fresh token for the current super admin (who is approving)
-        // This ensures the executed action has Super Admin privileges (bypassing the approval check)
+        // ✅ C-04 FIX: Whitelist allowed actions to prevent privilege escalation
+        const ALLOWED_URL_PREFIXES = [
+            '/api/admin/subjects',
+            '/api/admin/exams', 
+            '/api/admin/students',
+            '/api/admin/terms',
+            '/api/admin/notifications'
+        ];
+        const requestUrl = (requestData.url || '').toLowerCase();
+        const isAllowedAction = ALLOWED_URL_PREFIXES.some(prefix => requestUrl.startsWith(prefix));
+        
+        if (!isAllowedAction) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'نوع الإجراء غير مسموح بالتنفيذ التلقائي عبر نظام الموافقات' 
+            });
+        }
+
+        // ✅ C-04 FIX: Short-lived token (30s) bound to specific approval
         const token = jwt.sign(
-            { adminId: req.admin.id, is_system_execution: true, type: 'access' },
-            process.env.JWT_SECRET,
-            { expiresIn: '1h' }
+            { adminId: req.admin.id, is_system_execution: true, type: 'access', approval_id: id },
+            process.env.JWT_ADMIN_SECRET || process.env.JWT_SECRET,
+            { expiresIn: '30s' }
         );
 
         const PORT = process.env.PORT || 8080;

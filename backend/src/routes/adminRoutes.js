@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { adminAuth, checkPermission } = require('../middlewares/adminAuth');
 const { uploadAudio, upload: localUpload } = require('../middlewares/upload'); // Only keep what is needed from here
+const validateId = require('../middlewares/validateId'); // ✅ M-11 FIX: Validate route param IDs
 const { adminLoginValidation, subjectValidation, examValidation, updateExamValidation, questionBankValidation, updateQuestionBankValidation, updateAdminValidation, termValidation, updateTermValidation, validate } = require('../middlewares/validator');
 
 // Controllers

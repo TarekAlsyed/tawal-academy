@@ -235,13 +235,17 @@ class User {
   }
 
   static async search(searchTerm) {
+    // ✅ M-08 FIX: Validate and limit search term length
+    if (!searchTerm || typeof searchTerm !== 'string' || searchTerm.trim().length < 2) return [];
+    const sanitizedTerm = searchTerm.trim().substring(0, 100);
+    
     const result = await pool.query(
       `SELECT id, name, email, total_points, registration_date, is_blocked
        FROM users
        WHERE name ILIKE $1 OR email ILIKE $1
        ORDER BY total_points DESC
        LIMIT 50`,
-      [`%${searchTerm}%`]
+      [`%${sanitizedTerm}%`]
     );
     return result.rows;
   }

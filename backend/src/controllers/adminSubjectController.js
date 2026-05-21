@@ -35,7 +35,8 @@ exports.createSubject = async (req, res, next) => {
     // التعامل مع upload.fields
     const coverFile = req.file || (req.files && req.files.cover ? req.files.cover[0] : null);
     if (coverFile && !coverImage) {
-      coverImage = coverFile.path;
+      // ✅ L-05 FIX: Store relative path instead of absolute system path
+      coverImage = coverFile.path.includes('http') ? coverFile.path : coverFile.path.replace(/\\/g, '/').replace(/^.*\/uploads\//, '/uploads/');
     }
 
     // هل المدير محتاج موافقة؟ (يستثنى المدير العام دائماً)
@@ -170,37 +171,20 @@ exports.addPDFs = async (req, res, next) => {
         // Return response IMMEDIATELY after DB save, BEFORE sending notifications to speed up UI
         res.status(201).json({ success: true, message: `تم رفع ${created.length} ملف بنجاح`, data: { pdfs: created } });
 
-        // Notify students in the background (Don't await to avoid UI hang)
+        // ✅ M-09 FIX: Use single INSERT...SELECT instead of fetching all students
         (async () => {
             try {
                 const subject = await Subject.findById(id);
-                const students = await pool.query('SELECT id FROM users WHERE is_blocked = FALSE');
+                const message = `تمت إضافة ${created.length} ملف PDF جديد في مادة: ${subject.name}`;
+                const type = 'new_content';
+                const link = `/#/subjects/${id}`;
                 
-                if (students.rows.length > 0) {
-                    const message = `تمت إضافة ${created.length} ملف PDF جديد في مادة: ${subject.name}`;
-                    const type = 'new_content';
-                    const link = `/#/subjects/${id}`;
-                    
-                    // Bulk insert notifications in chunks to avoid PostgreSQL parameter limit (65535)
-                    const CHUNK_SIZE = 5000;
-                    for (let i = 0; i < students.rows.length; i += CHUNK_SIZE) {
-                        const chunk = students.rows.slice(i, i + CHUNK_SIZE);
-                        const values = [];
-                        const placeholders = [];
-                        
-                        chunk.forEach((student, index) => {
-                            const base = index * 4;
-                            placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`);
-                            values.push(student.id, message, type, link);
-                        });
-                        
-                        await pool.query(
-                            `INSERT INTO notifications (user_id, message, type, link) VALUES ${placeholders.join(', ')}`,
-                            values
-                        );
-                        console.log(`[UPLOAD] Sent notifications to chunk ${i / CHUNK_SIZE + 1}`);
-                    }
-                }
+                await pool.query(
+                    `INSERT INTO notifications (user_id, message, type, link)
+                     SELECT id, $1, $2, $3 FROM users WHERE is_blocked = FALSE`,
+                    [message, type, link]
+                );
+                console.log(`[UPLOAD] Sent notifications via bulk INSERT...SELECT`);
             } catch (notifyErr) {
                 console.error('Background Notification Error:', notifyErr.message);
             }
@@ -255,34 +239,18 @@ exports.addImages = async (req, res, next) => {
       }
       await Admin.logActivity(req.admin.id, 'upload_images', { subjectId: id, count: created.length }, req.ip);
       
-      // Notify students about new image materials
+      // ✅ M-09 FIX: Use single INSERT...SELECT for image notifications too
       try {
         const subject = await Subject.findById(id);
-        const students = await pool.query('SELECT id FROM users WHERE is_blocked = FALSE');
+        const message = `تمت إضافة ${created.length} صور جديدة في مادة: ${subject.name}`;
+        const type = 'new_content';
+        const link = `/#/subjects/${id}`;
         
-        if (students.rows.length > 0) {
-          const message = `تمت إضافة ${created.length} صور جديدة في مادة: ${subject.name}`;
-          const type = 'new_content';
-          const link = `/#/subjects/${id}`;
-          
-          // Bulk insert notifications in chunks to avoid PostgreSQL parameter limit
-          const CHUNK_SIZE = 5000;
-          for (let i = 0; i < students.rows.length; i += CHUNK_SIZE) {
-            const chunk = students.rows.slice(i, i + CHUNK_SIZE);
-            const values = [];
-            const placeholders = [];
-            chunk.forEach((student, index) => {
-              const base = index * 4;
-              placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`);
-              values.push(student.id, message, type, link);
-            });
-            
-            await pool.query(
-              `INSERT INTO notifications (user_id, message, type, link) VALUES ${placeholders.join(', ')}`,
-              values
-            );
-          }
-        }
+        await pool.query(
+            `INSERT INTO notifications (user_id, message, type, link)
+             SELECT id, $1, $2, $3 FROM users WHERE is_blocked = FALSE`,
+            [message, type, link]
+        );
       } catch (notifyErr) {
         console.error('Failed to notify students about new images:', notifyErr);
       }

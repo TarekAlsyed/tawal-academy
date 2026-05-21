@@ -7,11 +7,11 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // Supabase pooler uses certs not in Node's trust store; connection is still encrypted
+  ssl: { rejectUnauthorized: false }, // ✅ Required for Supabase pooler and AlwaysData connections without custom CA certs
   // 🕒 إعدادات توفير الطاقة
   max: 10, // تقليل الحد الأقصى للاتصالات لتوفير الموارد
   idleTimeoutMillis: 30000, // إغلاق الاتصالات غير النشطة بعد 30 ثانية (يسمح لـ Neon بالنوم)
-  connectionTimeoutMillis: 2000, // وقت انتظار قصير للاتصال الجديد
+  connectionTimeoutMillis: 10000, // وقت انتظار أطول (10 ثواني) لتجنب أخطاء Timeout مع Supabase/Neon
 });
 
 pool.on('connect', () => {

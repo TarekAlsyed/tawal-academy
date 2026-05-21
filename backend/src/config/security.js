@@ -18,6 +18,23 @@ const pool = require('./database');
 
 const settingsService = require('../services/settingsService');
 
+// ✅ C-06 FIX: CSRF Protection using double-submit cookie pattern
+const { doubleCsrf } = require('csrf-csrf');
+
+const { generateCsrfToken, doubleCsrfProtection } = doubleCsrf({
+  getSecret: () => process.env.CSRF_SECRET || process.env.APP_SECRET || 'dev-csrf-secret',
+  cookieName: '__csrf',
+  cookieOptions: {
+    httpOnly: true,
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+  },
+  size: 64,
+  getTokenFromRequest: (req) => req.headers['x-csrf-token'],
+  getSessionIdentifier: (req) => req.cookies?.['session'] || 'anonymous',
+});
+
 // ============================================
 // 1. Advanced HMAC Integrity (Elite Defense) - Final, most robust version
 // ============================================
@@ -54,10 +71,9 @@ const verifyRequestIntegrity = async (req, res, next) => {
     const method = (req.method || '').toUpperCase();
     const path = (req.path || '').toLowerCase();
     
-    // Skip integrity check for Admin Dashboard requests (already protected by JWT)
-    // and monitoring routes (public error reporting)
-    if (path.includes('/api/admin/') || 
-        path.includes('/monitoring/')) {
+    // ✅ M-04 FIX: Apply integrity check to admin routes too (removed /api/admin/ skip)
+    // Only skip monitoring routes (public error reporting)
+    if (path.includes('/monitoring/')) {
         return next();
     }
 
@@ -242,9 +258,9 @@ const checkBlacklist = async (req, res, next) => {
         const ip = req.ip || req.connection.remoteAddress;
         const path = req.path || '';
 
-        // Emergency Exception: Never block Admin Login or Health Checks by IP
-        // This ensures the admin can always access the dashboard to manage security
-        if (path === '/api/admin/login' || path === '/api/health' || path === '/health') {
+        // ✅ M-02 FIX: Only skip health checks — admin/login is now protected by blacklist
+        // loginLimiter already provides brute-force protection on top of this
+        if (path === '/api/health' || path === '/health') {
             return next();
         }
 
@@ -254,10 +270,10 @@ const checkBlacklist = async (req, res, next) => {
         // Check in-memory cache (zero DB queries)
         if (await blacklistCache.isBlocked(ip)) {
             console.warn(`[SECURITY] Blocked blacklisted IP: ${ip} on ${req.method} ${path}`);
+            // ✅ L-01 FIX: Never expose blocked IP in response
             return res.status(403).json({ 
                 success: false, 
-                message: 'Access Denied (IP Blocked)',
-                blocked_ip: process.env.NODE_ENV === 'development' ? ip : undefined
+                message: 'Access Denied (IP Blocked)'
             });
         }
         next();
@@ -269,10 +285,25 @@ const checkBlacklist = async (req, res, next) => {
     }
 };
 
-// Application Signature verification is handled via JWT + HMAC layers
-// This middleware delegates to the existing verifyRequestIntegrity chain
+// ✅ C-09 FIX: Implement actual app signature verification
 const verifySignature = (req, res, next) => {
-    // Signature validation is now fully covered by verifyRequestIntegrity
+    // Skip for safe methods and health checks
+    if (req.method === 'GET' || req.method === 'OPTIONS') return next();
+    const path = (req.path || '').toLowerCase();
+    if (path === '/health' || path.includes('/api/health')) return next();
+
+    const signature = req.headers['x-app-signature'];
+    const expectedSignature = process.env.APP_SIGNATURE;
+
+    if (!signature || !expectedSignature || signature !== expectedSignature) {
+        logSecurityAudit(req, 'invalid_app_signature', 'medium', { received: signature ? 'present' : 'missing' });
+        if (process.env.NODE_ENV === 'production') {
+            return res.status(403).json({
+                success: false,
+                message: 'توقيع التطبيق غير صالح'
+            });
+        }
+    }
     return next();
 };
 
@@ -328,6 +359,14 @@ const loginLimiter = rateLimit({
     }
 });
 
+// ✅ L-06 FIX: Dedicated rate limiter for heartbeat endpoint (2 requests per minute)
+const heartbeatLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 2,
+    message: { success: false, message: 'Too many heartbeat requests' },
+    skipFailedRequests: true,
+});
+
 // ============================================
 // 4. Web Application Firewall (WAF) - Lite
 // ============================================
@@ -381,10 +420,8 @@ const wafMiddleware = (req, res, next) => {
             inputToCheck.includes('" OR "1"="1')) {
              logSecurityAudit(req, 'injection_attempt', 'critical');
              
-             // Block malicious payloads in production or strict mode
-             if (process.env.STRICT_SECURITY_MODE === 'true' || process.env.NODE_ENV === 'production') {
-                return res.status(403).json({ success: false, message: 'تم رفض الطلب لأسباب أمنية' });
-             }
+             // ✅ M-01 FIX: Block injection attempts in ALL environments, not just production
+             return res.status(403).json({ success: false, message: 'تم رفض الطلب لأسباب أمنية' });
         }
     } catch (e) {
         // Skip check if stringify fails
@@ -421,6 +458,7 @@ const setupSecurity = (app) => {
                 'https://tarekalsyed.github.io',
                 'http://localhost:3000',
                 'http://localhost:5173',
+                'http://127.0.0.1:5173',
                 'http://localhost:8080',
                 // Capacitor mobile app origins (v5+ uses https://localhost)
                 'capacitor://localhost',
@@ -458,7 +496,8 @@ const setupSecurity = (app) => {
             'X-Platform',
             'Accept',
             'Origin',
-            'x-device-id'
+            'x-device-id',
+            'x-csrf-token'
         ],
         exposedHeaders: ['Content-Range', 'X-Content-Range', 'Set-Cookie'],
         credentials: true,
@@ -466,15 +505,16 @@ const setupSecurity = (app) => {
     };
 
     app.use(cors(corsOptions));
-    app.options('*', cors(corsOptions)); // Handle all preflight requests
+    app.options(/.*/, cors(corsOptions)); // Handle all preflight requests
 
     // 2. Helmet (Security Headers)
     app.use(helmet({
         crossOriginResourcePolicy: { policy: "cross-origin" },
+        // ✅ C-05 FIX: Hardened CSP — removed unsafe-inline/unsafe-eval from scripts
         contentSecurityPolicy: {
             directives: {
                 defaultSrc: ["'self'"],
-                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://tarekalsyed.github.io"],
+                scriptSrc: ["'self'", "https://tarekalsyed.github.io"],
                 styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
                 imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://tawal-academy-backend-v2.fly.dev", "https://tawal-academy.alwaysdata.net"],
                 connectSrc: ["'self'", "https://tawal-academy-backend-v2.fly.dev", "http://localhost:8080", "https://tawal-academy.alwaysdata.net"],
@@ -482,12 +522,23 @@ const setupSecurity = (app) => {
                 objectSrc: ["'none'"],
                 mediaSrc: ["'self'", "https://res.cloudinary.com", "https://tawal-academy.alwaysdata.net"],
                 frameSrc: ["'none'"],
+                baseUri: ["'self'"],
+                formAction: ["'self'"],
             },
         },
         referrerPolicy: { policy: "same-origin" },
         xssFilter: true,
         noSniff: true,
         hidePoweredBy: true,
+        // ✅ L-02 FIX: Add Permissions-Policy header
+        permissionsPolicy: {
+            features: {
+                camera: ["'none'"],
+                microphone: ["'none'"],
+                geolocation: ["'none'"],
+                payment: ["'none'"]
+            }
+        },
         hsts: {
             maxAge: 31536000,
             includeSubDomains: true,
@@ -503,7 +554,24 @@ const setupSecurity = (app) => {
     app.use(verifySignature);
     app.use(verifyRequestIntegrity);
 
-    return { logger, loginLimiter, logSecurityAudit };
+    // ✅ C-06 FIX: CSRF Protection (skip for API routes used by mobile apps)
+    app.use((req, res, next) => {
+      // Skip CSRF for mobile (Capacitor), health checks, and OPTIONS
+      if (req.method === 'GET' || req.method === 'OPTIONS') return next();
+      if (req.headers['x-platform'] === 'capacitor') return next();
+      if (req.path === '/api/health' || req.path === '/health') return next();
+      if (req.path.startsWith('/api/auth/') || req.path === '/api/admin/login') return next();
+      
+      return doubleCsrfProtection(req, res, next);
+    });
+
+    // ✅ C-06: CSRF Token endpoint
+    app.get('/api/csrf-token', (req, res) => {
+      const token = generateCsrfToken(req, res);
+      res.json({ csrfToken: token });
+    });
+
+    return { logger, loginLimiter, logSecurityAudit, heartbeatLimiter };
 };
 
 module.exports = setupSecurity;
@@ -511,5 +579,6 @@ module.exports.logSecurityAudit = logSecurityAudit;
 module.exports.verifySignature = verifySignature;
 module.exports.verifyRequestIntegrity = verifyRequestIntegrity;
 module.exports.loginLimiter = loginLimiter;
+module.exports.heartbeatLimiter = heartbeatLimiter; // ✅ L-06 FIX
 module.exports.logger = logger;
 module.exports.blacklistCache = blacklistCache;

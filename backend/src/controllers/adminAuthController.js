@@ -25,7 +25,7 @@ exports.login = async (req, res, next) => {
         // Return a temporary token for MFA verification
         const mfaToken = jwt.sign(
           { adminId: admin.id, isMfaPending: true },
-          process.env.JWT_SECRET,
+          process.env.JWT_ADMIN_SECRET || process.env.JWT_SECRET,
           { expiresIn: '5m' }
         );
         return res.json({ 
@@ -50,15 +50,16 @@ exports.login = async (req, res, next) => {
 
     console.log('✅ Admin logged in:', admin.email);
     const tokenId = uuidv4();
+    // ✅ C-07 FIX: Use separate admin secret
     const accessToken = jwt.sign(
       { adminId: admin.id, email: admin.email, ip: req.ip || req.connection.remoteAddress, tokenId, type: 'access' }, 
-      process.env.JWT_SECRET, 
+      process.env.JWT_ADMIN_SECRET || process.env.JWT_SECRET, 
       { expiresIn: '1h' }
     );
 
     const refreshToken = jwt.sign(
       { adminId: admin.id, tokenId, type: 'refresh' },
-      process.env.JWT_SECRET,
+      process.env.JWT_ADMIN_SECRET || process.env.JWT_SECRET,
       { expiresIn: '3d' }
     );
     
@@ -132,7 +133,8 @@ exports.refreshToken = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Refresh token not found' });
     }
 
-    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    // ✅ C-07 FIX: Use separate admin secret for refresh verification
+    const decoded = jwt.verify(refreshToken, process.env.JWT_ADMIN_SECRET || process.env.JWT_SECRET);
     if (decoded.type !== 'refresh') {
       return res.status(401).json({ success: false, message: 'Invalid token type' });
     }
@@ -150,7 +152,7 @@ exports.refreshToken = async (req, res, next) => {
 
     const accessToken = jwt.sign(
       { adminId: admin.id, email: admin.email, ip: req.ip || req.connection.remoteAddress, tokenId: decoded.tokenId, type: 'access' },
-      process.env.JWT_SECRET,
+      process.env.JWT_ADMIN_SECRET || process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
 

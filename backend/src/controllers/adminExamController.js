@@ -86,35 +86,20 @@ exports.createExam = async (req, res, next) => {
     // تسجيل النشاط
     await Admin.logActivity(req.admin.id, 'create_exam', { examId: exam.id }, req.ip);
     
-    // Notify students about new exam using bulk insert (performance)
+    // ✅ M-09 FIX: Use single INSERT...SELECT for exam notifications
     if (is_published) {
       try {
         const subjectResult = await pool.query('SELECT name FROM subjects WHERE id = $1', [subject_id]);
         const subjectName = subjectResult.rows[0]?.name || 'غير معروف';
-        const students = await pool.query('SELECT id FROM users WHERE is_blocked = FALSE');
+        const message = `تم نشر امتحان جديد: ${title} في مادة ${subjectName}`;
+        const type = 'new_exam';
+        const link = `/#/subjects/${subject_id}`;
         
-        if (students.rows.length > 0) {
-          const message = `تم نشر امتحان جديد: ${title} في مادة ${subjectName}`;
-          const type = 'new_exam';
-          const link = `/#/subjects/${subject_id}`;
-          
-          // Bulk insert in chunks to avoid PostgreSQL parameter limit
-          const CHUNK_SIZE = 5000;
-          for (let i = 0; i < students.rows.length; i += CHUNK_SIZE) {
-            const chunk = students.rows.slice(i, i + CHUNK_SIZE);
-            const values = [];
-            const placeholders = [];
-            chunk.forEach((student, index) => {
-              const base = index * 4;
-              placeholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`);
-              values.push(student.id, message, type, link);
-            });
-            await pool.query(
-              `INSERT INTO notifications (user_id, message, type, link) VALUES ${placeholders.join(', ')}`,
-              values
-            );
-          }
-        }
+        await pool.query(
+          `INSERT INTO notifications (user_id, message, type, link)
+           SELECT id, $1, $2, $3 FROM users WHERE is_blocked = FALSE`,
+          [message, type, link]
+        );
       } catch (notifyErr) {
         console.error('Failed to notify students about new exam:', notifyErr);
       }
@@ -207,26 +192,37 @@ exports.addQuestionsManually = async (req, res, next) => {
 
     const createdQuestions = await Question.bulkCreate(id, questions);
 
-    // إضافة الأسئلة تلقائياً لبنك الأسئلة المركزي
+    // ✅ M-10 FIX: Bulk insert to question bank instead of sequential N+1 queries
     try {
       const QuestionBank = require('../models/QuestionBank');
       const exam = await Exam.findById(id);
-      for (const q of questions) {
-        try {
-          await QuestionBank.create({
-            subject_id: exam.subject_id,
-            question_text: q.question_text || q.questionText,
-            type: q.type || 'multiple',
-            options: q.options || { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d },
-            correct_answer: q.correct_answer || q.correctAnswer,
-            explanation: q.explanation,
-            difficulty_level: 3,
-            created_by: req.admin.id
-          });
-        } catch (bankErr) {
-          // تجاهل الخطأ إذا كان السؤال موجوداً بالفعل
-          console.log('Skipping duplicate question in bank auto-add');
+      if (exam && questions.length > 0) {
+        const bankValues = [];
+        const bankPlaceholders = [];
+        let paramIdx = 1;
+
+        for (const q of questions) {
+          bankPlaceholders.push(
+            `($${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++}, $${paramIdx++})`
+          );
+          bankValues.push(
+            exam.subject_id,
+            q.question_text || q.questionText || '',
+            q.type || 'multiple',
+            JSON.stringify(q.options || { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d }),
+            q.correct_answer || q.correctAnswer || '',
+            q.explanation || null,
+            3, // difficulty_level
+            req.admin.id
+          );
         }
+
+        await pool.query(
+          `INSERT INTO question_bank (subject_id, question_text, type, options, correct_answer, explanation, difficulty_level, created_by)
+           VALUES ${bankPlaceholders.join(', ')}
+           ON CONFLICT DO NOTHING`,
+          bankValues
+        ).catch(err => console.log('Bulk question bank insert skipped (possible duplicates):', err.message));
       }
     } catch (err) {
       console.error('Error auto-adding questions to bank:', err);

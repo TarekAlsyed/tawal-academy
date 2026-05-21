@@ -15,7 +15,8 @@ const adminAuth = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // ✅ C-07 FIX: Use separate admin secret for verification
+    const decoded = jwt.verify(token, process.env.JWT_ADMIN_SECRET || process.env.JWT_SECRET);
 
     // 1. اكتشاف محاولات دخول الطلبة للوحة التحكم (Security Violation)
     if (decoded.userId && !decoded.adminId) {

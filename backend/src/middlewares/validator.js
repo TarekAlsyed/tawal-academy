@@ -72,7 +72,10 @@ exports.updateQuestionBankValidation = [
 exports.createAdminValidation = [
   body('name').notEmpty().withMessage('اسم المسؤول مطلوب'),
   body('email').isEmail().withMessage('البريد الإلكتروني غير صالح'),
-  body('password').isLength({ min: 8 }).withMessage('كلمة المرور يجب أن لا تقل عن 8 أحرف'),
+  body('password')
+    .isLength({ min: 8, max: 128 }).withMessage('كلمة المرور يجب أن تكون بين 8 و 128 حرفاً')
+    .matches(/[A-Z]/).withMessage('كلمة المرور يجب أن تحتوي على حرف كبير واحد على الأقل')
+    .matches(/[0-9]/).withMessage('كلمة المرور يجب أن تحتوي على رقم واحد على الأقل'),
 ];
 
 exports.updateAdminValidation = [

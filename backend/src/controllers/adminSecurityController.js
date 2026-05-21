@@ -99,13 +99,13 @@ const getSecurityDashboardStats = async (req, res) => {
     // System Health Pulse (Based on DB status and error count)
     const healthPulse = 100 - Math.min(recentErrors.length * 2, 30); 
 
-    // Simulated Heatmap Data (Since we don't have GeoIP yet)
+    // ⚠️ L-10 NOTE: Heatmap data is placeholder. Replace with real GeoIP data when available.
     const heatmapData = [
-      { city: 'القاهرة', count: Math.floor(Math.random() * 50) + 10 },
-      { city: 'الرياض', count: Math.floor(Math.random() * 30) + 5 },
-      { city: 'جدة', count: Math.floor(Math.random() * 20) + 3 },
-      { city: 'دبي', count: Math.floor(Math.random() * 15) + 2 },
-      { city: 'الإسكندرية', count: Math.floor(Math.random() * 25) + 4 }
+      { city: 'القاهرة', count: 0, isPlaceholder: true },
+      { city: 'الرياض', count: 0, isPlaceholder: true },
+      { city: 'جدة', count: 0, isPlaceholder: true },
+      { city: 'دبي', count: 0, isPlaceholder: true },
+      { city: 'الإسكندرية', count: 0, isPlaceholder: true }
     ];
     
     // Get threat level (based on last scan or recent critical errors)
@@ -334,6 +334,12 @@ const clearOldLogs = async (req, res) => {
 const resetIPBlacklist = async (req, res) => {
   try {
     await pool.query('TRUNCATE ip_blacklist RESTART IDENTITY');
+    // ✅ M-03 FIX: Sync in-memory blacklist cache immediately after DB reset
+    const { blacklistCache } = require('../config/security');
+    if (blacklistCache) {
+      blacklistCache._ips = new Set();
+      blacklistCache._lastRefresh = Date.now();
+    }
     res.json({ success: true, message: 'تم تصفير القائمة السوداء بنجاح' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

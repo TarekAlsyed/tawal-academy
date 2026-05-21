@@ -24,7 +24,8 @@ const auth = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // ✅ C-07 FIX: Use separate student access token secret with fallback
+    const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET);
     
     if (!decoded.userId || decoded.type !== 'access') {
       return res.status(401).json({

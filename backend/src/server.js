@@ -6,13 +6,32 @@ const cookieParser = require('cookie-parser');
 const setupSecurity = require('./config/security');
 require('dotenv').config();
 
-// Global Error Handlers for Startup
+// ✅ L-08 FIX: Suppress verbose console.log in production (keep error/warn)
+if (process.env.NODE_ENV === 'production') {
+  const originalLog = console.log;
+  console.log = (...args) => {
+    // Only allow startup and critical logs in production
+    const msg = args[0]?.toString() || '';
+    if (msg.includes('🚀') || msg.includes('✅') || msg.includes('❌') || msg.includes('📡')) {
+      originalLog.apply(console, args);
+    }
+    // All other console.log calls are silently suppressed in production
+  };
+}
+
+// ✅ C-08 FIX: Global Error Handlers — exit on uncaughtException to avoid undefined state
 process.on('uncaughtException', (err) => {
-  console.error('❌ UNCAUGHT EXCEPTION during startup:', err);
+  console.error('❌ UNCAUGHT EXCEPTION:', err);
+  // Process state is undefined after uncaughtException — must exit
+  // Process manager (PM2/Docker/systemd) will restart automatically
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ UNHANDLED REJECTION at:', promise, 'reason:', reason);
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
 });
 
 // Verify critical environment variables
@@ -46,7 +65,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // 2. Apply Advanced Security Configuration (WAF, Logging, Throttling, etc.)
-const { logger, loginLimiter } = setupSecurity(app);
+const { logger, loginLimiter, heartbeatLimiter } = setupSecurity(app);
 
 // Update Monitor Activity on each request (except for internal health checks)
 app.use((req, res, next) => {
@@ -196,6 +215,16 @@ const initApp = async () => {
     console.log('🔄 Initializing database indexes...');
     await createIndexes();
     console.log('✅ Database initialization complete.');
+
+    // ✅ C-02: Create OTP table if OTP is enabled
+    if (process.env.OTP_ENABLED === 'true') {
+      try {
+        const createOtpTable = require('./migrations/create-otp-table');
+        await createOtpTable();
+      } catch (otpErr) {
+        console.warn('⚠️ OTP table migration skipped:', otpErr.message);
+      }
+    }
     
     // Start Monitoring Service (24/7) ONLY after DB is ready
     console.log('🔄 Starting Monitor Service...');
@@ -232,8 +261,8 @@ if (require.main === module) {
     console.log('');
   });
 
-  // Increase timeout for large file uploads (10 minutes)
-  server.timeout = 600000;
+  // ✅ L-07 FIX: Reduce default timeout to 2 minutes (upload routes have their own 15min timeout)
+  server.timeout = 120000;
   server.keepAliveTimeout = 61000;
   server.headersTimeout = 62000;
 

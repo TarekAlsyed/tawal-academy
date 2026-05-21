@@ -23,12 +23,57 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://tawal-academy.alwaysdat
 // ============================================
 const IS_NATIVE = Capacitor.isNativePlatform();
 
+// ✅ M-06 FIX: Use SecureStorage on native platforms (Keychain/Keystore)
+// Falls back to localStorage if plugin is not installed
+let SecureStoragePlugin = null;
+let secureStorageInitialized = false;
+
+const initSecureStorage = async () => {
+  if (secureStorageInitialized) return;
+  if (IS_NATIVE) {
+    try {
+      const mod = await import('capacitor-secure-storage-plugin').catch(() => null);
+      SecureStoragePlugin = mod?.SecureStoragePlugin || null;
+    } catch { /* plugin not installed — fallback to localStorage */ }
+  }
+  secureStorageInitialized = true;
+};
+
 const TokenStore = {
-  getAccess: () => localStorage.getItem('cap_access_token'),
-  getRefresh: () => localStorage.getItem('cap_refresh_token'),
-  setAccess: (token) => localStorage.setItem('cap_access_token', token),
-  setRefresh: (token) => localStorage.setItem('cap_refresh_token', token),
-  clear: () => {
+  getAccess: async () => {
+    await initSecureStorage();
+    if (SecureStoragePlugin) {
+      return SecureStoragePlugin.get({ key: 'cap_access_token' }).then(r => r.value).catch(() => null);
+    }
+    return localStorage.getItem('cap_access_token');
+  },
+  getRefresh: async () => {
+    await initSecureStorage();
+    if (SecureStoragePlugin) {
+      return SecureStoragePlugin.get({ key: 'cap_refresh_token' }).then(r => r.value).catch(() => null);
+    }
+    return localStorage.getItem('cap_refresh_token');
+  },
+  setAccess: async (token) => {
+    await initSecureStorage();
+    if (SecureStoragePlugin) {
+      await SecureStoragePlugin.set({ key: 'cap_access_token', value: token }).catch(() => {});
+    }
+    localStorage.setItem('cap_access_token', token);
+  },
+  setRefresh: async (token) => {
+    await initSecureStorage();
+    if (SecureStoragePlugin) {
+      await SecureStoragePlugin.set({ key: 'cap_refresh_token', value: token }).catch(() => {});
+    }
+    localStorage.setItem('cap_refresh_token', token);
+  },
+  clear: async () => {
+    await initSecureStorage();
+    if (SecureStoragePlugin) {
+      await SecureStoragePlugin.remove({ key: 'cap_access_token' }).catch(() => {});
+      await SecureStoragePlugin.remove({ key: 'cap_refresh_token' }).catch(() => {});
+    }
     localStorage.removeItem('cap_access_token');
     localStorage.removeItem('cap_refresh_token');
   }
@@ -85,7 +130,7 @@ api.interceptors.response.use(
 
 // Request interceptor - add token and security headers to requests
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // Default retry settings
     config.retry = 2; 
 
@@ -98,7 +143,10 @@ api.interceptors.request.use(
     // Get deviceId from localStorage or generate one
     let deviceId = localStorage.getItem('deviceId');
     if (!deviceId) {
-      deviceId = `device-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // ✅ L-03 FIX: Use cryptographically secure random ID instead of Math.random
+      deviceId = typeof crypto !== 'undefined' && crypto.randomUUID 
+        ? `device-${crypto.randomUUID()}`
+        : `device-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       localStorage.setItem('deviceId', deviceId);
     }
     
@@ -129,6 +177,18 @@ api.interceptors.request.use(
     const method = config.method ? config.method.toLowerCase() : '';
     const isFormData = config.data instanceof FormData;
 
+    // CSRF Protection (M-06)
+    if (!IS_NATIVE && method !== 'get' && method !== 'options') {
+      const csrfToken = localStorage.getItem('csrf_token');
+      if (csrfToken) {
+        if (config.headers.set) {
+          config.headers.set('x-csrf-token', csrfToken);
+        } else {
+          config.headers['x-csrf-token'] = csrfToken;
+        }
+      }
+    }
+
     // CRITICAL: For FormData, we MUST NOT set application/json or Axios won't add the boundary
     if (isFormData) {
         if (config.headers.delete) {
@@ -151,7 +211,7 @@ api.interceptors.request.use(
     // CAPACITOR (Defense-in-Depth): Attach Bearer header as backup auth
     // Primary auth is via CapacitorHttp native cookies, this is secondary
     if (IS_NATIVE) {
-      const accessToken = TokenStore.getAccess();
+      const accessToken = await TokenStore.getAccess();
       if (accessToken) {
         if (config.headers.set) {
           config.headers.set('Authorization', `Bearer ${accessToken}`);
@@ -188,16 +248,16 @@ const onRefreshFailed = (error) => {
 
 // Response interceptor - handle errors and permissions
 api.interceptors.response.use(
-  (response) => {
+  async (response) => {
     // CAPACITOR: Capture tokens from login/refresh responses and store locally
     if (IS_NATIVE && response.data?.data?.accessToken) {
-      TokenStore.setAccess(response.data.data.accessToken);
+      await TokenStore.setAccess(response.data.data.accessToken);
     }
     if (IS_NATIVE && response.data?.data?.refreshToken) {
-      TokenStore.setRefresh(response.data.data.refreshToken);
+      await TokenStore.setRefresh(response.data.data.refreshToken);
     }
     if (IS_NATIVE && response.data?.accessToken) {
-      TokenStore.setAccess(response.data.accessToken);
+      await TokenStore.setAccess(response.data.accessToken);
     }
 
     // Handle Pending Approval (202 Accepted)
@@ -209,7 +269,7 @@ api.interceptors.response.use(
     }
     return response;
   },
-  (error) => {
+  async (error) => {
     // Handle Permission Denied (403 Forbidden)
     if (error.response?.status === 403) {
         toast.error(error.response.data.message || 'ليس لديك صلاحية لهذا الإجراء', {
@@ -235,7 +295,8 @@ api.interceptors.response.use(
       if (!isRefreshing) {
         isRefreshing = true;
         // CAPACITOR: Send refresh token in body (cookies won't be available)
-        const refreshBody = IS_NATIVE ? { refreshToken: TokenStore.getRefresh() } : {};
+        const refreshToken = IS_NATIVE ? await TokenStore.getRefresh() : null;
+        const refreshBody = IS_NATIVE ? { refreshToken } : {};
         api.post(refreshEndpoint, refreshBody)
           .then(res => {
             isRefreshing = false;
@@ -307,7 +368,22 @@ api.interceptors.response.use(
  };
 
 // ============================================
-// Student API
+// Security Initialization
+// ============================================
+export const initializeCsrf = async () => {
+  if (IS_NATIVE) return; // Native doesn't need CSRF (bypassed in backend)
+  try {
+    const res = await api.get('/csrf-token');
+    if (res.data?.csrfToken) {
+      localStorage.setItem('csrf_token', res.data.csrfToken);
+    }
+  } catch (error) {
+    console.error('Failed to fetch CSRF token:', error);
+  }
+};
+
+// ============================================
+// Authentication
 // ============================================
 
 // Auth

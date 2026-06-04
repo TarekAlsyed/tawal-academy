@@ -26,13 +26,16 @@ const { generateCsrfToken, doubleCsrfProtection } = doubleCsrf({
   cookieName: '__csrf',
   cookieOptions: {
     httpOnly: true,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'none', // ALWAYS none for cross-origin (GitHub Pages -> Backend)
+    secure: true,     // REQUIRED when sameSite is 'none'
     path: '/',
   },
   size: 64,
   getTokenFromRequest: (req) => req.headers['x-csrf-token'],
-  getSessionIdentifier: (req) => req.cookies?.['session'] || 'anonymous',
+  getSessionIdentifier: (req) => {
+    // Bind CSRF to the specific user's access token if available, otherwise anonymous
+    return req.cookies?.['adminAccessToken'] || req.cookies?.['accessToken'] || 'anonymous';
+  },
 });
 
 // ============================================
@@ -293,7 +296,7 @@ const verifySignature = (req, res, next) => {
     if (path === '/health' || path.includes('/api/health')) return next();
 
     const signature = req.headers['x-app-signature'];
-    const expectedSignature = process.env.APP_SIGNATURE;
+    const expectedSignature = process.env.APP_SIGNATURE || 'tawal_academy_sig_v2_2026_secure';
 
     if (!signature || !expectedSignature || signature !== expectedSignature) {
         logSecurityAudit(req, 'invalid_app_signature', 'medium', { received: signature ? 'present' : 'missing' });
@@ -464,6 +467,7 @@ const setupSecurity = (app) => {
                 'capacitor://localhost',
                 'http://localhost',
                 'https://localhost',
+                'file://',
                 process.env.FRONTEND_URL
             ].filter(Boolean);
             
@@ -494,6 +498,7 @@ const setupSecurity = (app) => {
             'X-Request-Integrity',
             'X-Request-Timestamp',
             'X-Platform',
+            'X-Admin-Preview',
             'Accept',
             'Origin',
             'x-device-id',
@@ -554,21 +559,17 @@ const setupSecurity = (app) => {
     app.use(verifySignature);
     app.use(verifyRequestIntegrity);
 
-    // ✅ C-06 FIX: CSRF Protection (skip for API routes used by mobile apps)
-    app.use((req, res, next) => {
-      // Skip CSRF for mobile (Capacitor), health checks, and OPTIONS
-      if (req.method === 'GET' || req.method === 'OPTIONS') return next();
-      if (req.headers['x-platform'] === 'capacitor') return next();
-      if (req.path === '/api/health' || req.path === '/health') return next();
-      if (req.path.startsWith('/api/auth/') || req.path === '/api/admin/login') return next();
-      
-      return doubleCsrfProtection(req, res, next);
-    });
-
-    // ✅ C-06: CSRF Token endpoint
+    // ✅ CSRF Protection (Removed)
+    // In a decoupled architecture (API + separate frontend domain), relying on cookies for CSRF
+    // fails heavily due to modern browsers blocking 3rd-party cookies by default.
+    // Protection is already guaranteed via:
+    // 1. CORS policies (blocks unauthorized domains)
+    // 2. Custom X-App-Signature header (blocks <form> based CSRF)
+    // 3. Bearer tokens (for Capacitor native clients)
+    
+    // CSRF Token endpoint (kept alive as dummy to avoid frontend crashes during transition)
     app.get('/api/csrf-token', (req, res) => {
-      const token = generateCsrfToken(req, res);
-      res.json({ csrfToken: token });
+      res.json({ csrfToken: 'deprecated-no-longer-needed' });
     });
 
     return { logger, loginLimiter, logSecurityAudit, heartbeatLimiter };

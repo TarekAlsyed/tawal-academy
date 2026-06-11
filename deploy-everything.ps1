@@ -160,7 +160,7 @@ if (-not $SkipBackend) {
 
         # 2.4 Install dependencies on server
         Write-Info "Installing backend dependencies on server..."
-        $installCmd = "cd $REMOTE_DIR && npm install --production --silent 2>&1 | tail -1 && echo 'INSTALL_OK'"
+        $installCmd = "cd $REMOTE_DIR && npm install --production --legacy-peer-deps --silent 2>&1 | tail -1 && echo 'INSTALL_OK'"
         $result = ssh $REMOTE_USER_HOST $installCmd 2>&1
         
         if ($result -match "INSTALL_OK") {

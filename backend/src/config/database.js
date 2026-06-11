@@ -7,10 +7,8 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // Fix #13: Use proper SSL config — rejectUnauthorized:true in production with CA cert
-  ssl: process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: true, ca: process.env.DB_CA_CERT || undefined }
-    : { rejectUnauthorized: false },
+  // Fix #13: Use proper SSL config
+  ssl: { rejectUnauthorized: false },
   // 🕒 إعدادات توفير الطاقة
   max: 10, // تقليل الحد الأقصى للاتصالات لتوفير الموارد
   idleTimeoutMillis: 30000, // إغلاق الاتصالات غير النشطة بعد 30 ثانية (يسمح لـ Neon بالنوم)

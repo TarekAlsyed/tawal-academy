@@ -119,8 +119,8 @@ const verifyRequestIntegrity = async (req, res, next) => {
     }
 
     const now = Date.now();
-    // Fix #12: Reduced replay window from 60 min to 5 min (300000ms)
-    if (Math.abs(now - parseInt(timestamp)) > 300000) {
+    // Fix #12: Increased replay window to 24 hours for users with wrong PC clocks
+    if (Math.abs(now - parseInt(timestamp)) > 24 * 60 * 60 * 1000) {
         logSecurityAudit(req, 'replay_attack_detected', 'low');
         if (isStrictMode || process.env.NODE_ENV === 'production') {
             return res.status(403).json({ success: false, message: 'انتهت صلاحية الطلب (Replay Attack Prevention)' });
@@ -319,9 +319,9 @@ const verifySignature = (req, res, next) => {
     const crypto = require('crypto');
     const expectedSignature = crypto.createHmac('sha256', expectedSecret).update(signatureTime).digest('hex');
 
-    // Anti-replay: Ensure timestamp is within last 5 minutes
+    // Anti-replay: Ensure timestamp is within last 24 hours (for users with wrong PC clocks)
     const currentTime = Date.now();
-    if (Math.abs(currentTime - parseInt(signatureTime)) > 5 * 60 * 1000) {
+    if (Math.abs(currentTime - parseInt(signatureTime)) > 24 * 60 * 60 * 1000) {
         logSecurityAudit(req, 'expired_app_signature', 'medium', { received: signatureTime });
         if (process.env.NODE_ENV === 'production') {
             return res.status(403).json({ success: false, message: 'توقيع التطبيق منتهي الصلاحية' });

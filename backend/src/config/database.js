@@ -7,16 +7,34 @@ if (!process.env.DATABASE_URL) {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // ✅ Required for Supabase pooler and AlwaysData connections without custom CA certs
+  // Fix #13: Use proper SSL config — rejectUnauthorized:true in production with CA cert
+  ssl: process.env.NODE_ENV === 'production'
+    ? { rejectUnauthorized: true, ca: process.env.DB_CA_CERT || undefined }
+    : { rejectUnauthorized: false },
   // 🕒 إعدادات توفير الطاقة
   max: 10, // تقليل الحد الأقصى للاتصالات لتوفير الموارد
   idleTimeoutMillis: 30000, // إغلاق الاتصالات غير النشطة بعد 30 ثانية (يسمح لـ Neon بالنوم)
   connectionTimeoutMillis: 10000, // وقت انتظار أطول (10 ثواني) لتجنب أخطاء Timeout مع Supabase/Neon
 });
 
-pool.on('connect', () => {
-  console.log('✅ متصل بقاعدة البيانات بنجاح');
+pool.on('connect', (client) => {
+  // 🕒 Set timezone to Egypt Time (Africa/Cairo) for all connections
+  client.query("SET TIME ZONE 'Africa/Cairo'");
+  
+  // Fix #3: Connection log suppressed in production (pool.max=10 creates noise)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('✅ متصل بقاعدة البيانات بنجاح (توقيت مصر)');
+  }
 });
+
+// Fix #4: Run FCM migration once at startup instead of on every connection
+(async () => {
+  try {
+    await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token VARCHAR(255)");
+  } catch (err) {
+    console.error('Migration error (fcm_token):', err.message);
+  }
+})();
 
 pool.on('error', (err) => {
   console.error('❌ خطأ مفاجئ في قاعدة البيانات:', err);

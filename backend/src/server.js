@@ -60,9 +60,20 @@ const IP = process.env.IP || '0.0.0.0'; // Support AlwaysData IP or default to 0
 const uploadRoutes = require('./routes/uploadRoutes');
 
 // 1. Basic body parsers - CRITICAL: Needed BEFORE security integrity checks
-app.use(express.json({ limit: '10mb' })); 
+// Fix #17: Prototype Pollution protection via JSON reviver
+app.use(express.json({ 
+  limit: '10mb',
+  reviver: (key, value) => {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') return undefined;
+    return value;
+  }
+})); 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
+
+// Fix #18: Use DOMPurify for XSS Sanitization instead of xss-clean
+const xssSanitizer = require('./middlewares/xssSanitizer');
+app.use(xssSanitizer());
 
 // 2. Apply Advanced Security Configuration (WAF, Logging, Throttling, etc.)
 const { logger, loginLimiter, heartbeatLimiter } = setupSecurity(app);
@@ -109,7 +120,7 @@ app.use('/api', (req, res, next) => {
 // 2. Request logging middleware (reduced in production)
 app.use((req, res, next) => {
   // Set global timeout for large uploads (15 minutes)
-  if (req.url.includes('/pdfs') || req.url.includes('/images') || req.url.includes('/upload')) {
+  if (req.url.includes('/pdfs') || req.url.includes('/images') || req.url.includes('/upload') || req.url.includes('/videos') || req.url.includes('/audios')) {
     req.setTimeout(900000);
     res.setTimeout(900000);
     res.setHeader('Connection', 'keep-alive');
@@ -136,6 +147,16 @@ app.use((req, res, next) => {
 
 app.use('/api/auth', loginLimiter);
 app.use('/api/admin/login', loginLimiter);
+// Fix #28: Apply heartbeatLimiter to heartbeat endpoint
+app.use('/api/auth/heartbeat', heartbeatLimiter);
+
+// Fix #20: Content-Type validation for mutating requests
+app.use('/api', (req, res, next) => {
+  if (['POST', 'PUT', 'PATCH'].includes(req.method) && !req.is('json') && !req.is('multipart/form-data')) {
+    return res.status(415).json({ success: false, message: 'Content-Type غير مدعوم' });
+  }
+  next();
+});
 
 const uploadsPath = (process.env.NODE_ENV === 'production' && fs.existsSync('/app/uploads'))
   ? '/app/uploads' // For Docker (Fly.io)
@@ -192,11 +213,11 @@ app.use('/api', uploadRoutes);
 app.use('/api', routes);
 
 
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'المسار غير موجود'
-  });
+// Fix #45: Pass 404 to errorHandler instead of terminating immediately
+app.use((req, res, next) => {
+  const error = new Error('المسار غير موجود');
+  error.status = 404;
+  next(error);
 });
 
 app.use(errorHandler);

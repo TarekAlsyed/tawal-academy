@@ -2,6 +2,7 @@ const Subject = require('../models/Subject');
 const User = require('../models/User');
 const pool = require('../config/database');
 const { addPoints, POINTS } = require('../utils/pointsCalculator');
+const cloudinary = require('../config/cloudinary');
 
 exports.getCertificate = async (req, res, next) => {
   try {
@@ -242,16 +243,27 @@ exports.downloadPDF = async (req, res, next) => {
     
     // If it's already a full URL (like Cloudinary), return as is if watermark is not needed
     // or if it's already a secure cloudinary URL
+    // Fix #40: Cloudinary Signed URLs (منع تحميل الملفات خارج التطبيق)
     if (fileUrl.startsWith('http') || fileUrl.includes('res.cloudinary.com')) {
-      // In this version, we will NOT modify the URL itself to avoid Cloudinary transformation errors (White Screen)
-      // Instead, we rely COMPLETELY on our robust frontend Secure Overlay system which works on all pages
-      
+      let finalUrl = fileUrl;
+      if (finalUrl.includes('res.cloudinary.com')) {
+        try {
+          const publicIdMatch = finalUrl.match(/\/v\d+\/(.+)\.\w+$/) || finalUrl.match(/\/upload\/(?:v\d+\/)?(.+)$/);
+          if (publicIdMatch) {
+            const publicId = publicIdMatch[1];
+            finalUrl = cloudinary.url(publicId, { sign_url: true, secure: true });
+          }
+        } catch (e) {
+          console.error('[Cloudinary Sign Error]', e);
+        }
+      }
+
       return res.json({
         success: true,
         message: pointsAdded ? 'تم إضافة 5 نقاط لرصيدك' : 'تم تحميل الملف',
         data: {
           url: fileUrl,
-          full_url: fileUrl, // Return the clean, working URL
+          full_url: finalUrl,
           has_watermark: hasWatermark
         }
       });
@@ -313,6 +325,12 @@ exports.viewImage = async (req, res, next) => {
       
       // Inject Cloudinary dynamic watermark if it's a Cloudinary URL
       if (finalUrl.includes('res.cloudinary.com') && !finalUrl.includes('/admin/')) {
+        let publicId = null;
+        try {
+          const publicIdMatch = finalUrl.match(/\/v\d+\/(.+)\.\w+$/) || finalUrl.match(/\/upload\/(?:v\d+\/)?(.+)$/);
+          if (publicIdMatch) publicId = publicIdMatch[1];
+        } catch (e) {}
+
         // High visibility: o_40 (opacity), co_black, bo_3px_solid_white (outline)
         const watermarkTransformation = 'l_text:Arial_120_bold_stroke:Tawal%20Academy,g_center,o_40,a_-35,fl_tiled,co_black,bo_3px_solid_white';
         
@@ -324,6 +342,20 @@ exports.viewImage = async (req, res, next) => {
             finalUrl = `${parts[0]}/upload/${watermarkTransformation}/${parts[1]}`;
           } else {
             finalUrl = `${parts[0]}/upload/${watermarkTransformation},${parts[1]}`;
+          }
+        }
+
+        // Fix #40: Sign the transformed URL
+        if (publicId) {
+          try {
+            // Need to sign with transformations included if possible, but simplest is to use cloudinary.url with raw transformation string
+            finalUrl = cloudinary.url(publicId, { 
+                raw_transformation: watermarkTransformation,
+                sign_url: true, 
+                secure: true 
+            });
+          } catch(e) {
+            console.error('[Cloudinary Sign Error]', e);
           }
         }
       }

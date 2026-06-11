@@ -68,3 +68,68 @@ exports.deleteNotification = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.markAllAsRead = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    await pool.query(
+      'UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE',
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      message: 'تم تعيين جميع الإشعارات كمقروءة'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getUnreadCount = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    const unreadCount = await pool.query(
+      'SELECT COUNT(*) as count FROM notifications WHERE user_id = $1 AND is_read = FALSE',
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        unreadCount: parseInt(unreadCount.rows[0].count)
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.saveFcmToken = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { fcm_token } = req.body;
+
+    if (!fcm_token) {
+      return res.status(400).json({ success: false, message: 'FCM Token is required' });
+    }
+
+    // Fix #46: Encrypt FCM token before saving
+    const { encrypt } = require('../utils/encryption');
+    const encryptedToken = encrypt(fcm_token);
+
+    await pool.query(
+      'UPDATE users SET fcm_token = $1 WHERE id = $2',
+      [encryptedToken, userId]
+    );
+
+    res.json({
+      success: true,
+      message: 'تم حفظ الرمز بنجاح'
+    });
+  } catch (error) {
+    next(error);
+  }
+};

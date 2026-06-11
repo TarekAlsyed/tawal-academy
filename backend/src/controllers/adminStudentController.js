@@ -218,15 +218,31 @@ exports.deleteStudent = async (req, res, next) => {
 };
 
 exports.deleteAllStudents = async (req, res, next) => {
+  const { password } = req.body;
+
+  // Fix #31: Secure deleteAllStudents endpoint
+  if (!req.admin.is_super_admin) {
+    return res.status(403).json({ success: false, message: 'هذه الصلاحية متاحة للمدير العام فقط' });
+  }
+
+  if (!password) {
+    return res.status(400).json({ success: false, message: 'يرجى إدخال كلمة المرور لتأكيد العملية' });
+  }
+
   const client = await pool.connect();
   try {
+    const adminCheck = await client.query('SELECT password FROM admins WHERE id = $1', [req.admin.id]);
+    const bcrypt = require('bcryptjs');
+    if (!adminCheck.rows[0] || !(await bcrypt.compare(password, adminCheck.rows[0].password))) {
+      return res.status(401).json({ success: false, message: 'كلمة المرور غير صحيحة' });
+    }
+
     await client.query('BEGIN');
     
-    // حذف جميع الطلاب من جدول users
-    // سيتم حذف المخالفات والنتائج المرتبطة تلقائياً بسبب ON DELETE CASCADE في معظم الجداول
-    // لكننا لا نحذفهم من blocked_list للسماح لهم بالتسجيل مجدداً إذا رغبوا (حسب طلب المستخدم)
-    // ملاحظة: blocked_list عادة ما يحتوي على email أو device_id، وحذف الطالب من users لا يحذفه من هناك.
-    
+    // تسجيل العملية
+    const Admin = require('../models/Admin');
+    await Admin.logActivity(req.admin.id, 'delete_all_students', { ip: req.ip }, req.ip);
+
     await client.query('DELETE FROM users');
     
     await client.query('COMMIT');

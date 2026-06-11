@@ -41,7 +41,10 @@ const errorHandler = async (err, req, res, next) => {
     const savedError = await SystemError.create({
       errorType: err.name || (err.code ? `DB_ERROR_${err.code}` : 'API_ERROR'),
       message: err.message || 'خطأ غير معروف في الـ API',
-      stackTrace: err.stack,
+      // Fix #44: Truncate stack trace in production to avoid leaking sensitive paths
+      stackTrace: process.env.NODE_ENV === 'production' 
+        ? (err.stack || '').split('\n').slice(0, 3).join('\n') 
+        : err.stack,
       component,
       severity: isCritical ? 'critical' : 'medium',
       impactLevel: isCritical ? 'partial' : 'low',

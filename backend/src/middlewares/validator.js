@@ -22,6 +22,9 @@ exports.adminLoginValidation = [
 exports.studentLoginValidation = [
   body('name').notEmpty().withMessage('الاسم مطلوب'),
   body('email').isEmail().withMessage('البريد الإلكتروني غير صالح'),
+  // Fix #15: Validate OTP when provided
+  body('otp').optional().isLength({ min: 6, max: 6 }).isNumeric()
+    .withMessage('رمز التحقق يجب أن يكون 6 أرقام'),
 ];
 
 // Subjects

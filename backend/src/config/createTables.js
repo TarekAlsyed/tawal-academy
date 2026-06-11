@@ -46,6 +46,21 @@ const createTables = async () => {
     `);
     console.log('✅ جدول admins تم إنشاؤه');
 
+    // 2.1 جدول أرشيف المشرفين (Audit Trail - Fix #47)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admins_archive (
+        id INTEGER PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        permissions JSONB,
+        created_at TIMESTAMP,
+        is_super_admin BOOLEAN,
+        deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        deleted_by INTEGER
+      )
+    `);
+    console.log('✅ جدول admins_archive تم إنشاؤه');
+
     // 3. جدول الترمات
     await client.query(`
       CREATE TABLE IF NOT EXISTS terms (
@@ -99,6 +114,38 @@ const createTables = async () => {
       )
     `);
     console.log('✅ جدول images تم إنشاؤه');
+
+    // 6.1 جدول الفيديوهات (YouTube & Local)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS videos (
+        id SERIAL PRIMARY KEY,
+        subject_id INTEGER REFERENCES subjects(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL,
+        file_url VARCHAR(500),
+        youtube_link VARCHAR(500),
+        file_size INTEGER,
+        duration VARCHAR(50),
+        views_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CHECK (file_url IS NOT NULL OR youtube_link IS NOT NULL)
+      )
+    `);
+    console.log('✅ جدول videos تم إنشاؤه');
+
+    // 6.2 جدول الصوتيات
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS audios (
+        id SERIAL PRIMARY KEY,
+        subject_id INTEGER REFERENCES subjects(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL,
+        file_url VARCHAR(500) NOT NULL,
+        file_size INTEGER,
+        duration VARCHAR(50),
+        listens_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ جدول audios تم إنشاؤه');
 
     // 7. جدول الامتحانات
     await client.query(`
@@ -250,11 +297,21 @@ const createTables = async () => {
     `);
     console.log('✅ جدول student_violations تم إنشاؤه');
 
+    // 17. جدول التوكنات المحظورة (Fix #23)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS token_blacklist (
+        token VARCHAR(500) PRIMARY KEY,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ جدول token_blacklist تم إنشاؤه');
+
     await client.query('COMMIT');
     
     console.log('');
     console.log('🎉 تم إنشاء جميع الجداول بنجاح!');
-    console.log('📊 عدد الجداول: 16');
+    console.log('📊 عدد الجداول: 18');
     console.log('');
     
   } catch (error) {

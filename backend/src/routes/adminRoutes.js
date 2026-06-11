@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { adminAuth, checkPermission } = require('../middlewares/adminAuth');
-const { uploadAudio, upload: localUpload } = require('../middlewares/upload'); // Only keep what is needed from here
+const { uploadAudio, uploadVideo, upload: localUpload } = require('../middlewares/upload'); // Only keep what is needed from here
 const validateId = require('../middlewares/validateId'); // ✅ M-11 FIX: Validate route param IDs
 const { adminLoginValidation, subjectValidation, examValidation, updateExamValidation, questionBankValidation, updateQuestionBankValidation, updateAdminValidation, termValidation, updateTermValidation, validate } = require('../middlewares/validator');
 
@@ -140,7 +140,25 @@ router.post('/subjects/:id/images', adminAuth, checkPermission('subjects', 'uplo
   });
 }, uploadToCloudinary, adminSubjectController.addImages);
 router.delete('/subjects/:subjectId/images/:imageId', adminAuth, checkPermission('subjects', 'delete_image'), adminSubjectController.deleteImage);
-router.post('/subjects/:id/audio', adminAuth, uploadAudio.single('audio'), checkPermission('subjects', 'edit'), adminSubjectController.updateSubject); // Placeholder for audio upload
+
+// Videos and YouTube links
+router.post('/subjects/:id/videos', adminAuth, checkPermission('subjects', 'upload_image'), (req, res, next) => {
+  // We use upload_image permission for video/audio as well for simplicity unless a specific permission is needed
+  uploadVideo.array('videos', 10)(req, res, (err) => {
+    if (err) return handleMulterError(req, res, next)(err);
+    next();
+  });
+}, uploadToCloudinary, adminSubjectController.addVideos);
+router.delete('/subjects/:subjectId/videos/:videoId', adminAuth, checkPermission('subjects', 'delete_image'), adminSubjectController.deleteVideo);
+
+// Audios
+router.post('/subjects/:id/audios', adminAuth, checkPermission('subjects', 'upload_image'), (req, res, next) => {
+  uploadAudio.array('audios', 10)(req, res, (err) => {
+    if (err) return handleMulterError(req, res, next)(err);
+    next();
+  });
+}, uploadToCloudinary, adminSubjectController.addAudios);
+router.delete('/subjects/:subjectId/audios/:audioId', adminAuth, checkPermission('subjects', 'delete_image'), adminSubjectController.deleteAudio);
 
 // ============================================
 // Exams Routes

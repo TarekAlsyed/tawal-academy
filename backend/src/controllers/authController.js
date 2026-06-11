@@ -1,10 +1,14 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+// Fix #8: Moved from inline require() to module-level imports
+const pool = require('../config/database');
+const nodemailer = require('nodemailer');
 
 exports.login = async (req, res, next) => {
   try {
     const { name, email, autoLogin = false, otp } = req.body;
-    const deviceId = req.deviceId || req.body.deviceId || req.headers['x-device-id'];
+    // Fix #16: Unified deviceId extraction to ensure consistency with auth.js
+    const deviceId = req.deviceId || req.body.deviceId || req.headers['x-device-id'] || req.cookies?.deviceId;
     const fingerprint = req.fingerprint || req.headers['x-fingerprint'];
     const userAgent = req.get('User-Agent');
 
@@ -15,11 +19,32 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // ✅ C-02 FIX: OTP verification (enabled via OTP_ENABLED env var)
-    const isOtpEnabled = process.env.OTP_ENABLED === 'true';
+    // Fix #34: OTP verification is now enabled by default for student security
+    const isOtpEnabled = process.env.OTP_ENABLED !== 'false'; // Default to true unless explicitly disabled
     
-    if (isOtpEnabled && !autoLogin) {
+    // Fix #36: autoLogin no longer bypasses OTP entirely — requires recent session
+    if (isOtpEnabled) {
       const pool = require('../config/database');
+      
+      if (autoLogin) {
+        // Fix #36 & #37: Verify user has a recent session AND matches device_id/fingerprint
+        const recentSession = await pool.query(
+          "SELECT id, device_id, fingerprint FROM users WHERE email = $1 AND last_login > NOW() - INTERVAL '30 days'",
+          [email]
+        );
+        if (recentSession.rows.length === 0) {
+          return res.status(401).json({ success: false, message: 'يرجى تسجيل الدخول يدوياً' });
+        }
+
+        const userRec = recentSession.rows[0];
+        const { decrypt } = require('../utils/encryption');
+        const dbDeviceId = decrypt(userRec.device_id);
+
+        if (dbDeviceId !== deviceId && userRec.fingerprint !== fingerprint) {
+           return res.status(401).json({ success: false, message: 'جهاز غير مصرح به. يرجى تسجيل الدخول من جديد.' });
+        }
+        // Recent session valid and device verified — skip OTP for autoLogin
+      } else {
       
       if (!otp) {
         // Step 1: Generate and send OTP
@@ -78,7 +103,8 @@ exports.login = async (req, res, next) => {
 
       // Delete OTP after successful verification
       await pool.query(`DELETE FROM otp_codes WHERE email = $1`, [email]);
-    }
+      } // end of else (non-autoLogin OTP flow)
+    } // end of if (isOtpEnabled)
 
     // Check if user exists for autoLogin
     const userExists = await User.findByEmail(email);
@@ -102,7 +128,8 @@ exports.login = async (req, res, next) => {
 
     // ✅ C-07 FIX: Use separate secrets for access vs refresh tokens
     const accessToken = jwt.sign(
-      { userId: user.id, email: user.email, ip: req.ip || req.connection.remoteAddress, type: 'access' },
+      // Fix #38: Removed IP from JWT to avoid issues on mobile networks and enhance privacy
+      { userId: user.id, email: user.email, type: 'access' },
       process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET,
       { expiresIn: '15m' }
     );
@@ -131,6 +158,11 @@ exports.login = async (req, res, next) => {
     if (process.env.NODE_ENV !== 'production') {
         cookieOptions.secure = false;
         cookieOptions.sameSite = 'lax';
+    }
+
+    // Fix #9: Add domain for cross-origin cookie delivery in production
+    if (process.env.NODE_ENV === 'production' && process.env.COOKIE_DOMAIN) {
+      cookieOptions.domain = process.env.COOKIE_DOMAIN;
     }
 
     res.cookie('refreshToken', refreshToken, {
@@ -201,7 +233,8 @@ exports.refreshToken = async (req, res, next) => {
     }
 
     const accessToken = jwt.sign(
-      { userId: user.id, email: user.email, ip: req.ip || req.connection.remoteAddress, type: 'access' },
+      // Fix #38: Removed IP from JWT to avoid issues on mobile networks and enhance privacy
+      { userId: user.id, email: user.email, type: 'access' },
       process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET,
       { expiresIn: '15m' }
     );
@@ -243,11 +276,22 @@ exports.getProfile = async (req, res, next) => {
 
 exports.logout = async (req, res) => {
   try {
+    const token = req.header('Authorization')?.replace('Bearer ', '') || req.cookies.accessToken;
+    if (token) {
+      const decoded = jwt.decode(token);
+      if (decoded && decoded.exp) {
+        const pool = require('../config/database');
+        await pool.query(
+          'INSERT INTO token_blacklist (token, expires_at) VALUES ($1, to_timestamp($2)) ON CONFLICT (token) DO NOTHING',
+          [token, decoded.exp]
+        );
+      }
+    }
     if (req.user) {
       await User.logActivity(req.user.id, 'student_logout', {}, req.ip);
     }
   } catch (error) {
-    console.error('Logout log error', error);
+    console.error('Logout blacklist/log error', error);
   }
   // ✅ M-12 FIX: clearCookie must use matching options (path, sameSite, secure) to actually delete
   const clearOptions = {

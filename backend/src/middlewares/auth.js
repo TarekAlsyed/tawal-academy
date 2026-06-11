@@ -24,6 +24,12 @@ const auth = async (req, res, next) => {
       });
     }
 
+    // Fix #23: Check if token is blacklisted
+    const blacklisted = await pool.query('SELECT 1 FROM token_blacklist WHERE token = $1', [token]);
+    if (blacklisted.rows.length > 0) {
+      return res.status(401).json({ success: false, message: 'توكن منتهي الصلاحية (تم تسجيل الخروج)' });
+    }
+
     // ✅ C-07 FIX: Use separate student access token secret with fallback
     const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET);
     

@@ -1,5 +1,5 @@
 const StudentQuestion = require('../models/StudentQuestion');
-const { sendNotification } = require('../utils/notificationSender');
+const { sendNotification, notifyEvent } = require('../utils/notificationSender');
 const Admin = require('../models/Admin');
 
 exports.getAllQuestions = async (req, res, next) => {
@@ -52,12 +52,10 @@ exports.replyToQuestion = async (req, res, next) => {
     await Admin.logActivity(adminId, 'reply_to_question', { questionId: id }, req.ip);
 
     // Send notification to student
-    await sendNotification(
-      question.user_id,
-      `تم الرد على سؤالك: ${question.question_text.substring(0, 50)}...`,
-      'info',
-      `/questions`
-    );
+    await notifyEvent('reply_question', {
+      userId: question.user_id,
+      questionText: question.question_text.substring(0, 50) + '...'
+    }, '/#/student-questions');
 
     res.json({
       success: true,

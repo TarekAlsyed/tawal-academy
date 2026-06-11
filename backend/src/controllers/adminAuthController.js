@@ -5,6 +5,9 @@ const Session = require('../models/Session');
 const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
 const { v4: uuidv4 } = require('uuid');
+// Fix #8: Moved from inline require() to module-level imports
+const bcrypt = require('bcryptjs');
+const pool = require('../config/database');
 
 exports.login = async (req, res, next) => {
   const errors = validationResult(req);
@@ -261,12 +264,25 @@ exports.logout = async (req, res) => {
       await Session.invalidate(tokenId);
       await Admin.logActivity(req.admin.id, 'admin_logout', { tokenId }, req.ip);
     }
-    res.clearCookie('adminAccessToken');
-    res.clearCookie('adminRefreshToken');
+    // Fix #10: clearCookie must use matching options to actually delete cookies
+    const clearOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/'
+    };
+    res.clearCookie('adminAccessToken', clearOptions);
+    res.clearCookie('adminRefreshToken', clearOptions);
     res.json({ success: true, message: 'تم تسجيل الخروج' });
   } catch (error) {
-    res.clearCookie('adminAccessToken');
-    res.clearCookie('adminRefreshToken');
+    const clearOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/'
+    };
+    res.clearCookie('adminAccessToken', clearOptions);
+    res.clearCookie('adminRefreshToken', clearOptions);
     res.json({ success: true, message: 'تم تسجيل الخروج' });
   }
 };
@@ -493,11 +509,12 @@ exports.updateAdmin = async (req, res, next) => {
     const updates = {};
     if (name) updates.name = name;
     if (email) updates.email = email;
-    if (permissions !== undefined) updates.permissions = JSON.stringify(permissions);
-    if (req.body.permissionsDetailed !== undefined) updates.permissions_detailed = JSON.stringify(req.body.permissionsDetailed);
-    // SECURITY: Only super admins can change is_super_admin status
-    if (is_super_admin !== undefined && (req.admin.is_super_admin === true || req.admin.is_super_admin === 'true')) {
-      updates.is_super_admin = is_super_admin;
+    
+    // Fix #42: Mass assignment protection - only super_admin can change permissions
+    if (req.admin.is_super_admin === true || req.admin.is_super_admin === 'true') {
+      if (permissions !== undefined) updates.permissions = JSON.stringify(permissions);
+      if (req.body.permissionsDetailed !== undefined) updates.permissions_detailed = JSON.stringify(req.body.permissionsDetailed);
+      if (is_super_admin !== undefined) updates.is_super_admin = is_super_admin;
     }
 
     const pool = require('../config/database');
@@ -588,6 +605,16 @@ exports.deleteAdmin = async (req, res, next) => {
 
     // البدء في المعاملة
     await client.query('BEGIN');
+
+    // Fix #47: Archive admin data before deletion
+    const adminToArchive = await client.query('SELECT * FROM admins WHERE id = $1', [id]);
+    if (adminToArchive.rows.length > 0) {
+      const a = adminToArchive.rows[0];
+      await client.query(
+        'INSERT INTO admins_archive (id, name, email, permissions, created_at, is_super_admin, deleted_by) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [a.id, a.name, a.email, a.permissions, a.created_at, a.is_super_admin, req.admin.id]
+      );
+    }
 
     // فك ارتباط المدير بالمواد التي أنشأها
     await client.query('UPDATE subjects SET created_by = NULL WHERE created_by = $1', [id]);

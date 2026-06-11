@@ -1,5 +1,6 @@
 const Term = require('../models/Term');
 const Admin = require('../models/Admin');
+const { notifyEvent } = require('../utils/notificationSender');
 
 exports.getAllTerms = async (req, res, next) => {
   try {
@@ -56,6 +57,11 @@ exports.createTerm = async (req, res, next) => {
     
     // تسجيل النشاط
     await Admin.logActivity(req.admin.id, 'create_term', { name, is_published }, req.ip);
+
+    // 🔔 إرسال إشعار
+    if (term.is_published || is_published) {
+        await notifyEvent('new_term', { termName: name }, `/terms`);
+    }
 
     res.json({
       success: true,
@@ -126,6 +132,11 @@ exports.updateTerm = async (req, res, next) => {
 
     // تسجيل النشاط
     await Admin.logActivity(req.admin.id, 'update_term', { termId: id, ...updates }, req.ip);
+
+    // 🔔 إرسال إشعار
+    if (term.is_published || is_published) {
+        await notifyEvent('update_term', { termName: term.name || name }, `/terms`);
+    }
 
     res.json({
       success: true,

@@ -6,6 +6,7 @@ const questionParser = require('../utils/questionParser');
 const { validationResult } = require('express-validator');
 const fs = require('fs');
 const path = require('path');
+const { notifyEvent } = require('../utils/notificationSender');
 
 /**
  * متحكم إدارة الامتحانات للأدمن
@@ -74,6 +75,16 @@ exports.createExam = async (req, res, next) => {
     // إذا كان أكبر من 3، سنعتبره 3 كحد أقصى لتجنب خطأ قاعدة البيانات
     const validLevel = Math.min(Math.max(1, parseInt(level) || 1), 3);
 
+    // التحقق من عدد الامتحانات في هذا المستوى (الحد الأقصى 2)
+    const existingExams = await pool.query(
+      'SELECT COUNT(*) FROM exams WHERE subject_id = $1 AND level = $2 AND is_deleted = FALSE',
+      [subject_id, validLevel]
+    );
+
+    if (parseInt(existingExams.rows[0].count) >= 2) {
+      return res.status(400).json({ success: false, message: 'لا يمكن إضافة أكثر من امتحانين في نفس المستوى لهذه المادة.' });
+    }
+
     const result = await pool.query(
       `INSERT INTO exams (subject_id, level, name, title, description, time_limit, passing_score, points, start_date, end_date, is_published)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -86,20 +97,13 @@ exports.createExam = async (req, res, next) => {
     // تسجيل النشاط
     await Admin.logActivity(req.admin.id, 'create_exam', { examId: exam.id }, req.ip);
     
-    // ✅ M-09 FIX: Use single INSERT...SELECT for exam notifications
+    // ✅ M-09 FIX: Use notifyEvent for exam notifications
     if (is_published) {
       try {
         const subjectResult = await pool.query('SELECT name FROM subjects WHERE id = $1', [subject_id]);
         const subjectName = subjectResult.rows[0]?.name || 'غير معروف';
-        const message = `تم نشر امتحان جديد: ${title} في مادة ${subjectName}`;
-        const type = 'new_exam';
-        const link = `/#/subjects/${subject_id}`;
         
-        await pool.query(
-          `INSERT INTO notifications (user_id, message, type, link)
-           SELECT id, $1, $2, $3 FROM users WHERE is_blocked = FALSE`,
-          [message, type, link]
-        );
+        await notifyEvent('new_exam', { examName: title, subjectName }, `/#/subjects/${subject_id}`);
       } catch (notifyErr) {
         console.error('Failed to notify students about new exam:', notifyErr);
       }
@@ -153,6 +157,15 @@ exports.updateExam = async (req, res, next) => {
 
     // تسجيل النشاط
     await Admin.logActivity(req.admin.id, 'update_exam', { examId: id }, req.ip);
+
+    // 🔔 إرسال إشعار
+    try {
+      const subjectResult = await pool.query('SELECT name FROM subjects WHERE id = $1', [exam.subject_id]);
+      const subjectName = subjectResult.rows[0]?.name || 'غير معروف';
+      await notifyEvent('update_exam', { examName: exam.name || exam.title, subjectName }, `/#/subjects/${exam.subject_id}`);
+    } catch (e) {
+      console.error('Failed to send update exam notification:', e);
+    }
 
     res.json({ 
       success: true, 
@@ -233,6 +246,18 @@ exports.addQuestionsManually = async (req, res, next) => {
       examId: id, 
       count: createdQuestions.length 
     }, req.ip);
+
+    // 🔔 إرسال إشعار
+    try {
+      const exam = await Exam.findById(id);
+      if (exam && exam.is_published) {
+        const subjectResult = await pool.query('SELECT name FROM subjects WHERE id = $1', [exam.subject_id]);
+        const subjectName = subjectResult.rows[0]?.name || 'غير معروف';
+        await notifyEvent('new_questions', { examName: exam.name || exam.title, subjectName }, `/#/subjects/${exam.subject_id}`);
+      }
+    } catch (e) {
+      console.error('Failed to send new questions notification:', e);
+    }
 
     res.json({ 
       success: true, 

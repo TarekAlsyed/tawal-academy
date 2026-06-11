@@ -5,7 +5,7 @@ const fs = require('fs');
 
 // Create uploads directory if it doesn't exist (only in development or if not using Cloudinary)
 const uploadDir = path.join(__dirname, '../../uploads');
-const subDirs = ['covers', 'pdfs', 'images', 'excel', 'audio'];
+const subDirs = ['covers', 'pdfs', 'images', 'excel', 'audio', 'videos'];
 
 // Ensure uploads directory and subdirectories exist
 if (!fs.existsSync(uploadDir)) {
@@ -28,6 +28,7 @@ const storage = multer.diskStorage({
     else if (file.fieldname === 'images') subDir = 'images';
     else if (file.fieldname === 'excel') subDir = 'excel';
     else if (file.fieldname === 'audio') subDir = 'audio';
+    else if (file.fieldname === 'video') subDir = 'videos';
     
     cb(null, path.join(uploadDir, subDir));
   },
@@ -64,28 +65,28 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Create multer instance
+// Create multer instance for documents and images
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50 ميجابايت حد أقصى للملفات العادية
+    fileSize: 100 * 1024 * 1024, // 100 ميجابايت حد أقصى للملفات العادية و PDF
   },
   fileFilter: fileFilter,
 });
 
 const audioFileFilter = (req, file, cb) => {
   // Validate file extension
-  const allowedTypes = /mp3|wav|ogg/;
+  const allowedTypes = /mp3|wav|ogg|m4a/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
   
   // Validate MIME type
-  const allowedMimeTypes = ['audio/mpeg', 'audio/wav', 'audio/ogg'];
+  const allowedMimeTypes = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/x-m4a'];
   const mimetype = allowedMimeTypes.includes(file.mimetype);
 
   if (extname && mimetype) {
     return cb(null, true);
   } else {
-    cb(new Error('نوع الملف غير مسموح به. المسموح: MP3, WAV, OGG فقط.'));
+    cb(new Error('نوع الملف غير مسموح به. المسموح: MP3, WAV, OGG, M4A فقط.'));
   }
 };
 
@@ -93,9 +94,32 @@ const audioFileFilter = (req, file, cb) => {
 const uploadAudio = multer({
   storage: storage,
   limits: {
-    fileSize: 100 * 1024 * 1024, // 100MB for audio files
+    fileSize: 100 * 1024 * 1024, // Fix #39: 100MB for audio files (was 1GB)
   },
   fileFilter: audioFileFilter,
+});
+
+const videoFileFilter = (req, file, cb) => {
+  const allowedTypes = /mp4|mkv|avi|webm/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  
+  const allowedMimeTypes = ['video/mp4', 'video/x-matroska', 'video/x-msvideo', 'video/webm'];
+  const mimetype = allowedMimeTypes.includes(file.mimetype);
+
+  if (extname && mimetype) {
+    return cb(null, true);
+  } else {
+    cb(new Error('نوع الملف غير مسموح به. المسموح: MP4, MKV, AVI, WebM فقط.'));
+  }
+};
+
+// Create multer instance for video files
+const uploadVideo = multer({
+  storage: storage,
+  limits: {
+    fileSize: 500 * 1024 * 1024, // Fix #39: 500MB max for video files (was 10GB)
+  },
+  fileFilter: videoFileFilter,
 });
 
 // Magic Number Validation Middleware
@@ -228,4 +252,4 @@ const autoSaveUploadedFiles = async (req, res, next) => {
     }
 };
 
-module.exports = { upload, uploadAudio, verifyFileSignature, autoSaveUploadedImages: autoSaveUploadedFiles };
+module.exports = { upload, uploadAudio, uploadVideo, verifyFileSignature, autoSaveUploadedImages: autoSaveUploadedFiles };

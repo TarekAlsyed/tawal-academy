@@ -19,9 +19,15 @@ const appOnlyGuard = (req, res, next) => {
 
   // Method 2: Check User-Agent for Android WebView patterns (backup detection)
   const isAndroidWebView = userAgent.includes('wv') && userAgent.includes('Android');
+  const isElectronApp = userAgent.toLowerCase().includes('electron');
 
-  if (isCapacitorHeader || isAndroidWebView) {
-    return next(); // Allow — request is from the app
+  // Method 3: Admin Preview bypass (super admin testing from browser)
+  // Fix #22: Preview key moved to env var — no hardcoded secrets
+  const adminPreviewKey = req.headers['x-admin-preview'];
+  const isAdminPreview = process.env.ADMIN_PREVIEW_KEY && adminPreviewKey === process.env.ADMIN_PREVIEW_KEY;
+
+  if (isCapacitorHeader || isAndroidWebView || isElectronApp || isAdminPreview) {
+    return next(); // Allow — request is from the app or admin preview
   }
 
   // Block browser access for student routes

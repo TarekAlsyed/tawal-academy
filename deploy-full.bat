@@ -28,7 +28,7 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo Setting up on server...
-ssh %REMOTE_USER%@%REMOTE_HOST% "mkdir -p %REMOTE_DIR% && tar -xzf ~/backend.tar.gz -C %REMOTE_DIR% --strip-components=1 && cd %REMOTE_DIR% && cp .env.alwaysdata .env && rm ~/backend.tar.gz"
+ssh %REMOTE_USER%@%REMOTE_HOST% "mkdir -p %REMOTE_DIR% && cd %REMOTE_DIR% && cp .env .env.backup 2>/dev/null; tar -xzf ~/backend.tar.gz -C %REMOTE_DIR% --strip-components=1 && cp .env.backup .env 2>/dev/null; rm -f ~/backend.tar.gz .env.backup"
 if %ERRORLEVEL% neq 0 (
     echo Backend setup failed!
     exit /b 1

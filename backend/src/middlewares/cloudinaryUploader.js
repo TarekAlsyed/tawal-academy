@@ -72,9 +72,11 @@ const uploadToCloudinary = async (req, res, next) => {
                 .replace(/\s+/g, '_').substring(0, 30);
 
             const isPDF = file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf');
+            const isVideo = file.mimetype.startsWith('video/');
+            
             // PDF resource type should ideally be 'image' in Cloudinary to support page extraction and overlays
             // but 'auto' usually works fine. We'll stick with 'auto' but ensure robust options.
-            const folder = `tawal_academy/subjects/${sanitizedName}/${isPDF ? 'pdfs' : 'images'}`;
+            const folder = `tawal_academy/subjects/${sanitizedName}/${isPDF ? 'pdfs' : (isVideo ? 'videos' : 'images')}`;
             const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
             const publicId = `${file.fieldname}-${uniqueSuffix}`;
 
@@ -95,7 +97,7 @@ const uploadToCloudinary = async (req, res, next) => {
                 overwrite: true,
                 chunk_size: isLarge ? 6000000 : undefined,
                 // Transformation is only applied to images
-                transformation: isPDF ? [] : [
+                transformation: (isPDF || isVideo) ? [] : [
                     { width: 1200, crop: 'limit' },
                     { quality: 'auto' },
                     { fetch_format: 'auto' }
@@ -154,11 +156,11 @@ const uploadToCloudinary = async (req, res, next) => {
 const upload = multer({ 
     storage: storage,
     limits: {
-        fileSize: 50 * 1024 * 1024, // 50MB
+        fileSize: 500 * 1024 * 1024, // Fix #39: 500MB limit (was 10GB)
     },
     fileFilter: (req, file, cb) => {
         const path = require('path');
-        const allowedExtensions = /jpeg|jpg|png|gif|pdf|xlsx|xls|docx|doc|mp3|wav|ogg/;
+        const allowedExtensions = /jpeg|jpg|png|gif|pdf|xlsx|xls|docx|doc|mp3|wav|ogg|m4a|mp4|mkv|avi|webm/;
         const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
         
         const allowedMimeTypes = [
@@ -168,7 +170,8 @@ const upload = multer({
             'application/vnd.ms-excel',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'application/msword',
-            'audio/mpeg', 'audio/wav', 'audio/ogg'
+            'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/x-m4a',
+            'video/mp4', 'video/x-matroska', 'video/x-msvideo', 'video/webm'
         ];
         const mimetype = allowedMimeTypes.includes(file.mimetype);
 

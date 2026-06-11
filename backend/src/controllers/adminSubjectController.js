@@ -4,6 +4,7 @@ const PendingApproval = require('../models/PendingApproval');
 const pool = require('../config/database');
 const fs = require('fs');
 const path = require('path');
+const { notifyEvent } = require('../utils/notificationSender');
 
 const getPermissions = (admin) => {
   try {
@@ -49,6 +50,10 @@ exports.createSubject = async (req, res, next) => {
 
     const subject = await Subject.create(termId, name, description || null, coverImage, status || 'open', scheduledAt || null, req.admin.id);
     await Admin.logActivity(req.admin.id, 'create_subject', { subjectId: subject.id }, req.ip);
+    
+    // 🔔 Notify all students
+    await notifyEvent('new_subject', { subjectName: name }, `/subjects/${subject.id}`);
+
     res.status(201).json({ success: true, message: 'تم إنشاء المادة', data: { subject } });
   } catch (error) {
     next(error);
@@ -77,6 +82,11 @@ exports.updateSubject = async (req, res, next) => {
 
     const subject = await Subject.update(id, updates);
     await Admin.logActivity(req.admin.id, 'update_subject', { subjectId: id }, req.ip);
+    
+    // 🔔 Notify all students
+    const subjectName = subject.name || name || 'مادة';
+    await notifyEvent('update_subject', { subjectName }, `/subjects/${id}`);
+
     res.json({ success: true, message: 'تم تحديث المادة', data: { subject } });
   } catch (error) {
     next(error);
@@ -171,20 +181,12 @@ exports.addPDFs = async (req, res, next) => {
         // Return response IMMEDIATELY after DB save, BEFORE sending notifications to speed up UI
         res.status(201).json({ success: true, message: `تم رفع ${created.length} ملف بنجاح`, data: { pdfs: created } });
 
-        // ✅ M-09 FIX: Use single INSERT...SELECT instead of fetching all students
+        // ✅ Notify students
         (async () => {
             try {
                 const subject = await Subject.findById(id);
-                const message = `تمت إضافة ${created.length} ملف PDF جديد في مادة: ${subject.name}`;
-                const type = 'new_content';
-                const link = `/#/subjects/${id}`;
-                
-                await pool.query(
-                    `INSERT INTO notifications (user_id, message, type, link)
-                     SELECT id, $1, $2, $3 FROM users WHERE is_blocked = FALSE`,
-                    [message, type, link]
-                );
-                console.log(`[UPLOAD] Sent notifications via bulk INSERT...SELECT`);
+                await notifyEvent('new_pdf', { subjectName: subject.name, count: created.length }, `/#/subjects/${id}`);
+                console.log(`[UPLOAD] Sent notifications via notifyEvent`);
             } catch (notifyErr) {
                 console.error('Background Notification Error:', notifyErr.message);
             }
@@ -239,22 +241,15 @@ exports.addImages = async (req, res, next) => {
       }
       await Admin.logActivity(req.admin.id, 'upload_images', { subjectId: id, count: created.length }, req.ip);
       
-      // ✅ M-09 FIX: Use single INSERT...SELECT for image notifications too
-      try {
-        const subject = await Subject.findById(id);
-        const message = `تمت إضافة ${created.length} صور جديدة في مادة: ${subject.name}`;
-        const type = 'new_content';
-        const link = `/#/subjects/${id}`;
-        
-        await pool.query(
-            `INSERT INTO notifications (user_id, message, type, link)
-             SELECT id, $1, $2, $3 FROM users WHERE is_blocked = FALSE`,
-            [message, type, link]
-        );
-      } catch (notifyErr) {
-        console.error('Failed to notify students about new images:', notifyErr);
-      }
-
+      // ✅ Notify students
+      (async () => {
+        try {
+            const subject = await Subject.findById(id);
+            await notifyEvent('new_image', { subjectName: subject.name, count: created.length }, `/#/subjects/${id}`);
+        } catch (notifyErr) {
+            console.error('Background Notification Error:', notifyErr.message);
+        }
+      })();
       res.status(201).json({ success: true, message: `تم رفع ${created.length} صورة بنجاح`, data: { images: created } });
     } catch (error) {
       throw error;
@@ -341,6 +336,127 @@ exports.updatePDFWatermark = async (req, res, next) => {
 
     await Admin.logActivity(req.admin.id, 'update_pdf_watermark', { pdfId, has_watermark }, req.ip);
     res.json({ success: true, message: 'تم تحديث حالة العلامة المائية بنجاح', data: { pdf: updated } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.addVideos = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { youtube_link, title } = req.body;
+    
+    // إذا كان هناك رابط يوتيوب، نرفعه بدون ملف
+    if (youtube_link) {
+      if (!title) return res.status(400).json({ success: false, message: 'عنوان الفيديو مطلوب' });
+      const result = await Subject.addVideo(id, title, null, youtube_link, null);
+      await Admin.logActivity(req.admin.id, 'add_youtube_video', { subjectId: id, videoId: result.id }, req.ip);
+      
+      // ✅ Notify students
+      (async () => {
+        try {
+            const subject = await Subject.findById(id);
+            await notifyEvent('new_video', { subjectName: subject.name, count: 1 }, `/#/subjects/${id}`);
+        } catch (e) {}
+      })();
+      
+      return res.status(201).json({ success: true, message: 'تمت إضافة رابط اليوتيوب بنجاح', data: { video: result } });
+    }
+
+    // Handle upload.array for video files
+    let files = [];
+    if (Array.isArray(req.files)) files = req.files;
+    else if (req.files && req.files.videos) files = req.files.videos;
+    else if (req.file) files = [req.file];
+
+    if (files.length === 0) {
+      return res.status(400).json({ success: false, message: 'يرجى رفع فيديو أو إدخال رابط يوتيوب' });
+    }
+
+    const videos = files.map(f => {
+      let originalName = f.originalname;
+      try { originalName = Buffer.from(f.originalname, 'latin1').toString('utf8'); } catch (e) {}
+      return { name: originalName, url: f.path, size: f.size };
+    });
+
+    const created = [];
+    for (const vid of videos) {
+      const result = await Subject.addVideo(id, vid.name, vid.url, null, vid.size);
+      created.push(result);
+    }
+    await Admin.logActivity(req.admin.id, 'upload_videos', { subjectId: id, count: created.length }, req.ip);
+    
+    // ✅ Notify students
+    (async () => {
+      try {
+          const subject = await Subject.findById(id);
+          await notifyEvent('new_video', { subjectName: subject.name, count: created.length }, `/#/subjects/${id}`);
+      } catch (e) {}
+    })();
+
+    res.status(201).json({ success: true, message: `تم رفع ${created.length} فيديو بنجاح`, data: { videos: created } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.deleteVideo = async (req, res, next) => {
+  try {
+    const { subjectId, videoId } = req.params;
+    await Subject.deleteVideo(videoId);
+    await Admin.logActivity(req.admin.id, 'delete_video', { subjectId, videoId }, req.ip);
+    res.json({ success: true, message: 'تم حذف الفيديو بنجاح' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.addAudios = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    let files = [];
+    if (Array.isArray(req.files)) files = req.files;
+    else if (req.files && req.files.audios) files = req.files.audios;
+    else if (req.file) files = [req.file];
+
+    if (files.length === 0) {
+      return res.status(400).json({ success: false, message: 'يرجى رفع ملف صوتي' });
+    }
+
+    const audios = files.map(f => {
+      let originalName = f.originalname;
+      try { originalName = Buffer.from(f.originalname, 'latin1').toString('utf8'); } catch (e) {}
+      return { name: originalName, url: f.path, size: f.size };
+    });
+
+    const created = [];
+    for (const aud of audios) {
+      const result = await Subject.addAudio(id, aud.name, aud.url, aud.size);
+      created.push(result);
+    }
+    await Admin.logActivity(req.admin.id, 'upload_audios', { subjectId: id, count: created.length }, req.ip);
+    
+    // ✅ Notify students
+    (async () => {
+      try {
+          const subject = await Subject.findById(id);
+          await notifyEvent('new_audio', { subjectName: subject.name, count: created.length }, `/#/subjects/${id}`);
+      } catch (e) {}
+    })();
+
+    res.status(201).json({ success: true, message: `تم رفع ${created.length} ملف صوتي بنجاح`, data: { audios: created } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.deleteAudio = async (req, res, next) => {
+  try {
+    const { subjectId, audioId } = req.params;
+    await Subject.deleteAudio(audioId);
+    await Admin.logActivity(req.admin.id, 'delete_audio', { subjectId, audioId }, req.ip);
+    res.json({ success: true, message: 'تم حذف الملف الصوتي بنجاح' });
   } catch (error) {
     next(error);
   }

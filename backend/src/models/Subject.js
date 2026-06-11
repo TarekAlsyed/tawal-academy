@@ -78,6 +78,8 @@ class Subject {
       SELECT s.*, t.name as term_name,
              (SELECT COUNT(*) FROM pdfs WHERE subject_id = s.id) as pdfs_count,
              (SELECT COUNT(*) FROM images WHERE subject_id = s.id) as images_count,
+             (SELECT COUNT(*) FROM videos WHERE subject_id = s.id) as videos_count,
+             (SELECT COUNT(*) FROM audios WHERE subject_id = s.id) as audios_count,
              ${examsCountSubquery},
              (SELECT COALESCE(AVG(rating), 0) FROM ratings WHERE subject_id = s.id) as avg_rating,
              (SELECT COUNT(*) FROM ratings WHERE subject_id = s.id) as ratings_count
@@ -145,6 +147,18 @@ class Subject {
         [subjectId]
       );
 
+      // الفيديوهات
+      const videosResult = await client.query(
+        'SELECT * FROM videos WHERE subject_id = $1 ORDER BY created_at DESC',
+        [subjectId]
+      );
+
+      // الصوتيات
+      const audiosResult = await client.query(
+        'SELECT * FROM audios WHERE subject_id = $1 ORDER BY created_at DESC',
+        [subjectId]
+      );
+
       // الامتحانات - تعديل لجعل الأدمن يرى كل الامتحانات (حتى غير المنشورة)
       const isAdmin = !!userId && (await client.query('SELECT id FROM admins WHERE id = $1', [userId])).rows.length > 0;
       
@@ -182,6 +196,8 @@ class Subject {
         ...subject,
         pdfs: pdfsResult.rows,
         images: imagesResult.rows,
+        videos: videosResult.rows,
+        audios: audiosResult.rows,
         exams: examsResult.rows.map(exam => {
           const userAttempt = userAttempts.find(a => a.exam_id === exam.id);
           const bestScore = userAttempt ? parseFloat(userAttempt.best_score) : null;
@@ -214,6 +230,24 @@ class Subject {
   static async getImages(subjectId) {
     const result = await pool.query(
       'SELECT * FROM images WHERE subject_id = $1 ORDER BY created_at DESC',
+      [subjectId]
+    );
+    return result.rows;
+  }
+
+  // الحصول على فيديوهات لمادة
+  static async getVideos(subjectId) {
+    const result = await pool.query(
+      'SELECT * FROM videos WHERE subject_id = $1 ORDER BY created_at DESC',
+      [subjectId]
+    );
+    return result.rows;
+  }
+
+  // الحصول على صوتيات لمادة
+  static async getAudios(subjectId) {
+    const result = await pool.query(
+      'SELECT * FROM audios WHERE subject_id = $1 ORDER BY created_at DESC',
       [subjectId]
     );
     return result.rows;
@@ -253,6 +287,8 @@ class Subject {
         (SELECT COUNT(*) FROM exams WHERE subject_id = $1 AND is_published = TRUE) as total_exams,
         (SELECT COUNT(*) FROM pdfs WHERE subject_id = $1) as total_pdfs,
         (SELECT COUNT(*) FROM images WHERE subject_id = $1) as total_images,
+        (SELECT COUNT(*) FROM videos WHERE subject_id = $1) as total_videos,
+        (SELECT COUNT(*) FROM audios WHERE subject_id = $1) as total_audios,
         
         (SELECT COUNT(DISTINCT exam_id) FROM exam_attempts 
          WHERE user_id = $2 AND passed = true AND exam_id IN (SELECT id FROM exams WHERE subject_id = $1 AND is_published = TRUE)) as passed_exams,
@@ -267,14 +303,26 @@ class Subject {
          FROM points_log 
          WHERE user_id = $2 
          AND action_type = 'view_image' 
-         AND details->>'subjectId' = $3) as viewed_images`,
+         AND details->>'subjectId' = $3) as viewed_images,
+         
+        (SELECT COUNT(DISTINCT details->>'videoId') 
+         FROM points_log 
+         WHERE user_id = $2 
+         AND action_type = 'view_video' 
+         AND details->>'subjectId' = $3) as viewed_videos,
+         
+        (SELECT COUNT(DISTINCT details->>'audioId') 
+         FROM points_log 
+         WHERE user_id = $2 
+         AND action_type = 'listen_audio' 
+         AND details->>'subjectId' = $3) as listened_audios`,
       [subjectId, userId, subjectIdStr]
     );
     
-    const { total_exams, total_pdfs, total_images, passed_exams, downloaded_pdfs, viewed_images } = result.rows[0];
+    const { total_exams, total_pdfs, total_images, total_videos, total_audios, passed_exams, downloaded_pdfs, viewed_images, viewed_videos, listened_audios } = result.rows[0];
     
-    const totalContent = parseInt(total_exams || 0) + parseInt(total_pdfs || 0) + parseInt(total_images || 0);
-    const completedContent = parseInt(passed_exams || 0) + parseInt(downloaded_pdfs || 0) + parseInt(viewed_images || 0);
+    const totalContent = parseInt(total_exams || 0) + parseInt(total_pdfs || 0) + parseInt(total_images || 0) + parseInt(total_videos || 0) + parseInt(total_audios || 0);
+    const completedContent = parseInt(passed_exams || 0) + parseInt(downloaded_pdfs || 0) + parseInt(viewed_images || 0) + parseInt(viewed_videos || 0) + parseInt(listened_audios || 0);
     
     // حساب النسبة المئوية مع التأكد من عدم تجاوز 100%
     const percentage = totalContent > 0 ? Math.min(100, Math.round((completedContent / totalContent) * 100)) : 0;
@@ -283,9 +331,13 @@ class Subject {
       total_exams: parseInt(total_exams || 0),
       total_pdfs: parseInt(total_pdfs || 0),
       total_images: parseInt(total_images || 0),
+      total_videos: parseInt(total_videos || 0),
+      total_audios: parseInt(total_audios || 0),
       passed_exams: parseInt(passed_exams || 0),
       downloaded_pdfs: parseInt(downloaded_pdfs || 0),
       viewed_images: parseInt(viewed_images || 0),
+      viewed_videos: parseInt(viewed_videos || 0),
+      listened_audios: parseInt(listened_audios || 0),
       percentage: percentage
     };
   }
@@ -328,6 +380,8 @@ class Subject {
       const subjectResult = await client.query("SELECT cover_image FROM subjects WHERE id = $1", [subjectId]);
       const pdfsResult = await client.query("SELECT file_url FROM pdfs WHERE subject_id = $1", [subjectId]);
       const imagesResult = await client.query("SELECT file_url FROM images WHERE subject_id = $1", [subjectId]);
+      const videosResult = await client.query("SELECT file_url FROM videos WHERE subject_id = $1 AND file_url IS NOT NULL", [subjectId]);
+      const audiosResult = await client.query("SELECT file_url FROM audios WHERE subject_id = $1", [subjectId]);
 
       // حذف المادة من قاعدة البيانات (سيتم حذف السجلات المرتبطة بفضل ON DELETE CASCADE)
       await client.query('DELETE FROM subjects WHERE id = $1', [subjectId]);
@@ -343,6 +397,14 @@ class Subject {
 
       for (const img of imagesResult.rows) {
         await this.deleteFile(img.file_url);
+      }
+
+      for (const vid of videosResult.rows) {
+        await this.deleteFile(vid.file_url);
+      }
+
+      for (const aud of audiosResult.rows) {
+        await this.deleteFile(aud.file_url);
       }
 
       await client.query("COMMIT");
@@ -473,6 +535,72 @@ class Subject {
     }
   }
 
+  // إضافة فيديو (ملف أو يوتيوب)
+  static async addVideo(subjectId, title, fileUrl, youtubeLink, fileSize) {
+    const result = await pool.query(
+      `INSERT INTO videos (subject_id, title, file_url, youtube_link, file_size)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [subjectId, title, fileUrl, youtubeLink, fileSize]
+    );
+    return result.rows[0];
+  }
+
+  // حذف فيديو
+  static async deleteVideo(videoId) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        "DELETE FROM videos WHERE id = $1 RETURNING file_url",
+        [videoId]
+      );
+      if (result.rows[0] && result.rows[0].file_url) {
+        await this.deleteFile(result.rows[0].file_url);
+      }
+      await client.query("COMMIT");
+      return result.rows[0];
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  // إضافة صوت
+  static async addAudio(subjectId, title, fileUrl, fileSize) {
+    const result = await pool.query(
+      `INSERT INTO audios (subject_id, title, file_url, file_size)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [subjectId, title, fileUrl, fileSize]
+    );
+    return result.rows[0];
+  }
+
+  // حذف صوت
+  static async deleteAudio(audioId) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        "DELETE FROM audios WHERE id = $1 RETURNING file_url",
+        [audioId]
+      );
+      if (result.rows[0] && result.rows[0].file_url) {
+        await this.deleteFile(result.rows[0].file_url);
+      }
+      await client.query("COMMIT");
+      return result.rows[0];
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   // حذف جميع الامتحانات لمادة
   static async deleteAllExams(subjectId) {
     const client = await pool.connect();
@@ -591,6 +719,8 @@ class Subject {
       `SELECT s.*, 
               (SELECT COUNT(*) FROM pdfs WHERE subject_id = s.id) as pdfs_count,
               (SELECT COUNT(*) FROM images WHERE subject_id = s.id) as images_count,
+              (SELECT COUNT(*) FROM videos WHERE subject_id = s.id) as videos_count,
+              (SELECT COUNT(*) FROM audios WHERE subject_id = s.id) as audios_count,
               (SELECT COUNT(*) FROM exams WHERE subject_id = s.id AND is_published = TRUE) as exams_count,
               (SELECT COALESCE(AVG(rating), 0) FROM ratings WHERE subject_id = s.id) as avg_rating,
               (SELECT COUNT(*) FROM ratings WHERE subject_id = s.id) as ratings_count

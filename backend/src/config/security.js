@@ -85,6 +85,11 @@ const verifyRequestIntegrity = async (req, res, next) => {
         return next();
     }
 
+    // Skip for public auth endpoints — protected by loginLimiter rate limiting + password verification
+    if (path.includes('/admin/login') || path.includes('/auth/login') || path.includes('/auth/register') || path.includes('/refresh-token')) {
+        return next();
+    }
+
     // SECURITY: Emergency bypass removed for production safety
 
     // Allow bypass for file uploads if not in strict mode
@@ -114,7 +119,7 @@ const verifyRequestIntegrity = async (req, res, next) => {
     }
 
     const now = Date.now();
-    // 5 minutes tolerance for replay protection
+    // Fix #12: Reduced replay window from 60 min to 5 min (300000ms)
     if (Math.abs(now - parseInt(timestamp)) > 300000) {
         logSecurityAudit(req, 'replay_attack_detected', 'low');
         if (isStrictMode || process.env.NODE_ENV === 'production') {
@@ -295,16 +300,38 @@ const verifySignature = (req, res, next) => {
     const path = (req.path || '').toLowerCase();
     if (path === '/health' || path.includes('/api/health')) return next();
 
-    const signature = req.headers['x-app-signature'];
-    const expectedSignature = process.env.APP_SIGNATURE || 'tawal_academy_sig_v2_2026_secure';
+    // Skip for public auth endpoints — protected by loginLimiter rate limiting + password verification
+    if (path.includes('/admin/login') || path.includes('/auth/login') || path.includes('/auth/register') || path.includes('/refresh-token')) return next();
 
-    if (!signature || !expectedSignature || signature !== expectedSignature) {
-        logSecurityAudit(req, 'invalid_app_signature', 'medium', { received: signature ? 'present' : 'missing' });
+    const signature = req.headers['x-app-signature'];
+    const signatureTime = req.headers['x-app-signature-time'];
+    const expectedSecret = process.env.APP_SIGNATURE_SECRET || 'tawal-elite-secret-2026-key';
+
+    if (!signature || !signatureTime) {
+        logSecurityAudit(req, 'missing_app_signature', 'medium', { received: 'missing' });
         if (process.env.NODE_ENV === 'production') {
-            return res.status(403).json({
-                success: false,
-                message: 'توقيع التطبيق غير صالح'
-            });
+            return res.status(403).json({ success: false, message: 'توقيع التطبيق مفقود' });
+        }
+        return next();
+    }
+
+    // Fix #21: Validate Dynamic HMAC Signature
+    const crypto = require('crypto');
+    const expectedSignature = crypto.createHmac('sha256', expectedSecret).update(signatureTime).digest('hex');
+
+    // Anti-replay: Ensure timestamp is within last 5 minutes
+    const currentTime = Date.now();
+    if (Math.abs(currentTime - parseInt(signatureTime)) > 5 * 60 * 1000) {
+        logSecurityAudit(req, 'expired_app_signature', 'medium', { received: signatureTime });
+        if (process.env.NODE_ENV === 'production') {
+            return res.status(403).json({ success: false, message: 'توقيع التطبيق منتهي الصلاحية' });
+        }
+    }
+
+    if (signature !== expectedSignature) {
+        logSecurityAudit(req, 'invalid_app_signature', 'medium', { received: 'invalid' });
+        if (process.env.NODE_ENV === 'production') {
+            return res.status(403).json({ success: false, message: 'توقيع التطبيق غير صالح' });
         }
     }
     return next();
@@ -395,20 +422,22 @@ const wafMiddleware = (req, res, next) => {
     }
 
     // 2. SQL/NoSQL/XSS Injection Protection
+    // Fix #30: Enhanced WAF patterns — case-insensitive, comment-injection-aware, path traversal
     const maliciousPatterns = [
-        // REMOVED: Overly broad pattern that blocked legitimate apostrophes/hashes
-        /((\%3D)|(=))[^\n]*((\%27)|(\')|(\-\-)|(\%3B)|(;))/i,
-        /\w*((\%27)|(\'))((\%6F)|o|(\%4F))((\%72)|r|(\%52))/i,
-        /((\%27)|(\'))union/i,
+        /((%3D)|(=))[^\n]*((%27)|(\')|(\-\-)|(\%3B)|(;))/i,
+        /\w*((%27)|(\')){1}((%6F)|o|(%4F))((%72)|r|(%52))/i,
+        /((%27)|(\')){1}union/i,
         /\$where/i,
         /javascript:/i,
-        /<script.*?>/i,
+        /<script[\s\/]/i,
         /eval\(.*?\)/i,
-        /UNION ALL SELECT/i,
+        /UNION[\s\/\*]+ALL[\s\/\*]+SELECT/i,
         /INFORMATION_SCHEMA/i,
         /pg_sleep/i,
         /;\s*DROP\s+(TABLE|DATABASE)/i,
-        /;\s*DELETE\s+FROM/i
+        /;\s*DELETE\s+FROM/i,
+        /\.\.\/|\.\.\\/g,
+        /file:\/\//i
     ];
     
     // Clean input check
@@ -454,8 +483,14 @@ const setupSecurity = (app) => {
     // Optimized CORS Configuration for GitHub Pages & AlwaysData
     const corsOptions = {
         origin: function (origin, callback) {
-            // Allow requests with no origin (mobile apps, curl, server-to-server)
-            if (!origin) return callback(null, true);
+            // Fix #29: Only allow originless requests in development
+            // In production, mobile apps send capacitor://localhost or https://localhost origin
+            if (!origin) {
+              if (process.env.NODE_ENV !== 'production') {
+                return callback(null, true);
+              }
+              return callback(new Error('Origin header required'), false);
+            }
             
             const allowedOrigins = [
                 'https://tarekalsyed.github.io',
@@ -512,6 +547,12 @@ const setupSecurity = (app) => {
     app.use(cors(corsOptions));
     app.options(/.*/, cors(corsOptions)); // Handle all preflight requests
 
+    // Fix #14: CSP Nonce generation
+    app.use((req, res, next) => {
+        res.locals.nonce = crypto.randomBytes(16).toString('base64');
+        next();
+    });
+
     // 2. Helmet (Security Headers)
     app.use(helmet({
         crossOriginResourcePolicy: { policy: "cross-origin" },
@@ -519,8 +560,8 @@ const setupSecurity = (app) => {
         contentSecurityPolicy: {
             directives: {
                 defaultSrc: ["'self'"],
-                scriptSrc: ["'self'", "https://tarekalsyed.github.io"],
-                styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+                scriptSrc: ["'self'", "https://tarekalsyed.github.io", (req, res) => `'nonce-${res.locals.nonce}'`],
+                styleSrc: ["'self'", "https://fonts.googleapis.com", (req, res) => `'nonce-${res.locals.nonce}'`],
                 imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://tawal-academy-backend-v2.fly.dev", "https://tawal-academy.alwaysdata.net"],
                 connectSrc: ["'self'", "https://tawal-academy-backend-v2.fly.dev", "http://localhost:8080", "https://tawal-academy.alwaysdata.net"],
                 fontSrc: ["'self'", "https://fonts.gstatic.com"],

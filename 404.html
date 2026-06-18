@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/tawal-academy/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0c0f1a" />
+    <title>Tawal Academy</title>
+    <script type="text/javascript">
+      // GitHub Pages SPA redirect: converts 404 paths to hash routes
+      var l = window.location;
+      var base = '/tawal-academy';
+      var path = l.pathname.replace(base, '');
+      if (path && path !== '/' && path !== '') {
+        window.location.replace(
+          l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') + base + '/#' + path + l.search + l.hash
+        );
+      }
+    </script>
+  </head>
+  <body>
+  </body>
+</html>

@@ -15,3 +15,11 @@ scripts/
 *.md
 *.json-audit
 # تم السماح بهذه الملفات لاستخدامها في fly ssh console
+
+# SECURITY FIX: Firebase service account keys must NEVER be in Docker image
+src/config/firebase-service-account.json
+*firebase-service-account*.json
+*service-account*.json
+
+# SECURITY FIX: Debug scripts must NOT be in production Docker image
+scripts/debug/

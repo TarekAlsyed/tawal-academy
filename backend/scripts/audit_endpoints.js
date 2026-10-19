@@ -3,7 +3,13 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 const API_URL = 'http://localhost:5000/api';
-const APP_SECRET = 'tawal-elite-secret-2026-key'; // Fallback to common secret
+// SECURITY FIX: Never hardcode secrets in scripts — use environment variable
+const APP_SECRET = process.env.APP_SECRET || process.env.APP_SIGNATURE_SECRET;
+if (!APP_SECRET) {
+    console.error('[SECURITY] APP_SECRET environment variable is required. Set it before running this script.');
+    process.exit(1);
+}
+
 
 const generateHMAC = (body, timestamp, secret) => {
     try {
@@ -30,7 +36,8 @@ const getHeaders = (body = {}) => {
     return {
         'X-Request-Integrity': hmac,
         'X-Request-Timestamp': String(timestamp),
-        'X-App-Signature': 'TawalEliteShield-v2-Secr3t-S!gn@tur3-@2026',
+        // SECURITY FIX: Use environment variable — never hardcode app signature
+        'X-App-Signature': process.env.APP_SIGNATURE || '',
         'X-Device-Id': 'audit-test-device-id',
         'Content-Type': 'application/json'
     };

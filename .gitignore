@@ -9,3 +9,16 @@ backend.tar.gz
 backend_update.tar.gz
 .env
 .DS_Store
+
+# SECURITY: Firebase service account keys — NEVER commit to git
+backend/src/config/firebase-service-account.json
+*firebase-service-account*.json
+*service-account*.json
+
+# SECURITY: Debug scripts — should not be in production or public repos
+backend/scripts/debug/
+
+# Backend env files
+backend/.env
+backend/.env.production
+backend/.env.local

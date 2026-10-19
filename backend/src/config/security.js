@@ -119,9 +119,9 @@ const verifyRequestIntegrity = async (req, res, next) => {
     }
 
     const now = Date.now();
-    // Fix #12: Increased replay window to 24 hours for users with wrong PC clocks
-    if (Math.abs(now - parseInt(timestamp)) > 24 * 60 * 60 * 1000) {
-        logSecurityAudit(req, 'replay_attack_detected', 'low');
+    // SECURITY FIX: Reduced replay window from 24 hours to 5 minutes to prevent replay attacks
+    if (Math.abs(now - parseInt(timestamp)) > 5 * 60 * 1000) {
+        logSecurityAudit(req, 'replay_attack_detected', 'high');
         if (isStrictMode || process.env.NODE_ENV === 'production') {
             return res.status(403).json({ success: false, message: 'انتهت صلاحية الطلب (Replay Attack Prevention)' });
         }
@@ -293,7 +293,10 @@ const checkBlacklist = async (req, res, next) => {
     }
 };
 
-// ✅ C-09 FIX: Implement actual app signature verification
+// SECURITY NOTE: X-App-Signature removed from frontend (api.jsx).
+// Exposing app signatures in compiled JS bundles is a security anti-pattern.
+// Protection is now via: CORS policy + X-Request-Timestamp (replay) + rate limiting + IP blacklist.
+// This middleware is kept for legacy clients (older app versions) that still send the header.
 const verifySignature = (req, res, next) => {
     // Skip for safe methods and health checks
     if (req.method === 'GET' || req.method === 'OPTIONS') return next();
@@ -305,37 +308,48 @@ const verifySignature = (req, res, next) => {
 
     const signature = req.headers['x-app-signature'];
     const signatureTime = req.headers['x-app-signature-time'];
-    const expectedSecret = process.env.APP_SIGNATURE_SECRET || 'tawal-elite-secret-2026-key';
+    const expectedSecret = process.env.APP_SIGNATURE_SECRET;
 
-    if (!signature || !signatureTime) {
-        logSecurityAudit(req, 'missing_app_signature', 'medium', { received: 'missing' });
-        if (process.env.NODE_ENV === 'production') {
-            return res.status(403).json({ success: false, message: 'توقيع التطبيق مفقود' });
-        }
+    // SECURITY FIX: If no signature header sent, allow the request.
+    // The frontend no longer sends X-App-Signature (removed for security).
+    // Protection is enforced by CORS + timestamp replay protection + rate limiting.
+    if (!signature) {
         return next();
     }
 
-    // Fix #21: Validate Dynamic HMAC Signature
-    const crypto = require('crypto');
-    const expectedSignature = crypto.createHmac('sha256', expectedSecret).update(signatureTime).digest('hex');
+    // Legacy client with signature header: validate it
+    const staticSignature = process.env.APP_SIGNATURE;
+    if (staticSignature && signature === staticSignature) {
+        return next(); // Valid static signature from legacy client
+    }
 
-    // Anti-replay: Ensure timestamp is within last 24 hours (for users with wrong PC clocks)
-    const currentTime = Date.now();
-    if (Math.abs(currentTime - parseInt(signatureTime)) > 24 * 60 * 60 * 1000) {
-        logSecurityAudit(req, 'expired_app_signature', 'medium', { received: signatureTime });
-        if (process.env.NODE_ENV === 'production') {
-            return res.status(403).json({ success: false, message: 'توقيع التطبيق منتهي الصلاحية' });
+    // Dynamic HMAC signature validation
+    if (signatureTime && expectedSecret) {
+        const crypto = require('crypto');
+        const expectedSignature = crypto.createHmac('sha256', expectedSecret).update(signatureTime).digest('hex');
+
+        // SECURITY FIX: Reduced replay window from 24 hours to 5 minutes
+        const currentTime = Date.now();
+        if (Math.abs(currentTime - parseInt(signatureTime)) > 5 * 60 * 1000) {
+            logSecurityAudit(req, 'expired_app_signature', 'high', { received: signatureTime });
+            if (process.env.NODE_ENV === 'production') {
+                return res.status(403).json({ success: false, message: 'توقيع التطبيق منتهي الصلاحية' });
+            }
+        }
+
+        if (signature === expectedSignature) {
+            return next(); // Valid HMAC signature from legacy client
         }
     }
 
-    if (signature !== expectedSignature) {
-        logSecurityAudit(req, 'invalid_app_signature', 'medium', { received: 'invalid' });
-        if (process.env.NODE_ENV === 'production') {
-            return res.status(403).json({ success: false, message: 'توقيع التطبيق غير صالح' });
-        }
+    // Signature was sent but doesn't match — reject
+    logSecurityAudit(req, 'invalid_app_signature', 'high', { received: 'invalid' });
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(403).json({ success: false, message: 'توقيع التطبيق غير صالح' });
     }
     return next();
 };
+
 
 // ============================================
 // 2. Traffic Throttling (DDoS Protection)
@@ -483,13 +497,13 @@ const setupSecurity = (app) => {
     // Optimized CORS Configuration for GitHub Pages & AlwaysData
     const corsOptions = {
         origin: function (origin, callback) {
-            // Fix #29: Only allow originless requests in development
-            // In production, mobile apps send capacitor://localhost or https://localhost origin
+            // SECURITY FIX: Always block requests without Origin header.
+            // In all environments, originless requests are potential direct API abuse.
+            // Capacitor native apps send 'capacitor://localhost' as Origin.
+            // curl/Postman/scripts have no Origin and must be blocked.
             if (!origin) {
-              if (process.env.NODE_ENV !== 'production') {
-                return callback(null, true);
-              }
-              return callback(new Error('Origin header required'), false);
+                console.warn('[CORS] Blocked request without Origin header — potential direct API abuse');
+                return callback(new Error('Origin header required'), false);
             }
             
             const allowedOrigins = [

@@ -156,7 +156,7 @@ const uploadToCloudinary = async (req, res, next) => {
 const upload = multer({ 
     storage: storage,
     limits: {
-        fileSize: 500 * 1024 * 1024, // Fix #39: 500MB limit (was 10GB)
+        fileSize: 50 * 1024 * 1024, // SECURITY FIX: 50MB limit (was 500MB) — prevents storage abuse
     },
     fileFilter: (req, file, cb) => {
         const path = require('path');

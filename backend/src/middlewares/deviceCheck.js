@@ -7,11 +7,14 @@ const deviceCheck = async (req, res, next) => {
     const fingerprint = req.header('X-Fingerprint');
     const userAgent = req.get('User-Agent') || '';
 
-    // ROOT FIX: Disable mandatory Device ID check for mobile browsers 
-    // to prevent "Server Error" caused by cookie/header blocking on Android
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+    // SECURITY FIX: Re-enabled mandatory device ID check.
+    // All clients (including mobile) must send X-Device-Id header.
+    // The frontend (api.jsx) generates and persists a deviceId using SecureStorage.
     
-    if (!deviceId && !isMobile) {
+    // Only bypass device check for PDF proxy/download routes (accessed from browser react-pdf)
+    const isProxyRoute = req.path && (req.path.includes('/proxy') || req.path.includes('/download'));
+    
+    if (!deviceId && !isProxyRoute) {
       return res.status(401).json({
         success: false,
         message: 'معرف الجهاز مطلوب للوصول للمنصة'
@@ -39,9 +42,9 @@ const deviceCheck = async (req, res, next) => {
     }
 
     // Attach to request for later use in controllers
-    req.deviceId = deviceId || `mobile-auto-${Date.now()}`;
+    req.deviceId = deviceId || `proxy-${Date.now()}`;
     req.fingerprint = fingerprint;
-    req.isMobile = isMobile;
+    req.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
     
     next();
   } catch (error) {

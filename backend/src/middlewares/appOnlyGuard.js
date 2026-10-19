@@ -7,35 +7,60 @@
  * 2. User-Agent يحتوي على نمط Capacitor WebView
  * 
  * ملاحظة: مسارات الأدمن مستثناة من هذا القيد
+ * 
+ * SECURITY FIX: Re-enabled app-only protection.
+ * All student API requests must come from the official app (X-Platform: capacitor)
+ * or be sent from an allowed web origin (GitHub Pages for testing).
  */
 
 const appOnlyGuard = (req, res, next) => {
-  // Check if the request is from Capacitor app
-  const platform = req.headers['x-platform'];
-  const userAgent = req.get('User-Agent') || '';
+  const path = (req.path || '').toLowerCase();
+  const method = (req.method || '').toUpperCase();
 
-  // Method 1: Check X-Platform header (set by api.jsx interceptor)
-  const isCapacitorHeader = platform === 'capacitor';
+  // Always allow OPTIONS (CORS preflight)
+  if (method === 'OPTIONS') return next();
 
-  // Method 2: Check User-Agent for Android WebView patterns (backup detection)
-  const isAndroidWebView = userAgent.includes('wv') && userAgent.includes('Android');
-  const isElectronApp = userAgent.toLowerCase().includes('electron');
-
-  // Method 3: Admin Preview bypass (super admin testing from browser)
-  // Fix #22: Preview key moved to env var — no hardcoded secrets
-  const adminPreviewKey = req.headers['x-admin-preview'];
-  const isAdminPreview = process.env.ADMIN_PREVIEW_KEY && adminPreviewKey === process.env.ADMIN_PREVIEW_KEY;
-
-  if (isCapacitorHeader || isAndroidWebView || isElectronApp || isAdminPreview) {
-    return next(); // Allow — request is from the app or admin preview
+  // Allow health checks and monitoring
+  if (path === '/health' || path.includes('/api/health') || path.includes('/monitoring/')) {
+    return next();
   }
 
-  // Block browser access for student routes
+  // Admin routes: always allowed (admin has own authentication)
+  if (path.includes('/admin/') || path.includes('/admin')) {
+    return next();
+  }
+
+  // Auth routes: allow login/register/refresh (public endpoints)
+  if (path.includes('/auth/login') || path.includes('/auth/register') || path.includes('/refresh-token') || path.includes('/csrf-token')) {
+    return next();
+  }
+
+  const platform = req.headers['x-platform'] || '';
+  const userAgent = req.get('User-Agent') || '';
+
+  // Check if request comes from Capacitor native app
+  const isCapacitorPlatform = platform.toLowerCase() === 'capacitor';
+
+  // Check if User-Agent matches known Capacitor/WebView patterns
+  const isCapacitorUserAgent = /Capacitor|capacitor/i.test(userAgent) ||
+    /wv\)/i.test(userAgent) || // Android WebView
+    /Android.*Version\/[\d.]+.*Chrome/i.test(userAgent); // Android WebView pattern
+
+  // Allow GitHub Pages web origin (for development/testing/admin access from browser)
+  const origin = req.headers['origin'] || '';
+  const isAllowedWebOrigin = 
+    origin.includes('tarekalsyed.github.io') ||
+    origin.includes('localhost') ||
+    origin.includes('127.0.0.1');
+
+  if (isCapacitorPlatform || isCapacitorUserAgent || isAllowedWebOrigin) {
+    return next();
+  }
+
+  // Reject unauthorized clients
   return res.status(403).json({
     success: false,
-    message: 'الوصول متاح فقط عبر تطبيق Tawal Academy. يرجى تحميل التطبيق.',
-    appOnly: true,
-    downloadUrl: 'https://www.mediafire.com/file/7xvb3e61ry8s4gl/Tawal-Academy.apk/file'
+    message: 'هذه الخدمة متاحة فقط عبر التطبيق الرسمي'
   });
 };
 

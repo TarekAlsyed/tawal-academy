@@ -1,24 +1,29 @@
 const admin = require('firebase-admin');
-const path = require('path');
-const fs = require('fs');
+
+// SECURITY FIX: Never load service account from file on disk.
+// Use FIREBASE_SERVICE_ACCOUNT_JSON environment variable instead.
+// Set it in your .env or deployment secrets as a JSON string.
+
+let firebaseInitialized = false;
 
 try {
-  const serviceAccountPath = path.join(__dirname, 'firebase-service-account.json');
-  
-  if (fs.existsSync(serviceAccountPath)) {
-    const serviceAccount = require(serviceAccountPath);
-    
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+
+  if (serviceAccountJson) {
+    const serviceAccount = JSON.parse(serviceAccountJson);
+
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount)
     });
-    
-    console.log('Firebase Admin initialized successfully.');
+
+    firebaseInitialized = true;
+    console.log('Firebase Admin initialized successfully via environment variable.');
   } else {
-    console.warn('Firebase service account key not found at', serviceAccountPath);
-    console.warn('Push notifications will be disabled.');
+    console.warn('[Firebase] FIREBASE_SERVICE_ACCOUNT_JSON env variable not set.');
+    console.warn('[Firebase] Push notifications will be disabled.');
   }
 } catch (error) {
-  console.error('Failed to initialize Firebase Admin:', error);
+  console.error('[Firebase] Failed to initialize Firebase Admin:', error.message);
 }
 
 module.exports = admin;

@@ -94,7 +94,7 @@ const audioFileFilter = (req, file, cb) => {
 const uploadAudio = multer({
   storage: storage,
   limits: {
-    fileSize: 100 * 1024 * 1024, // Fix #39: 100MB for audio files (was 1GB)
+    fileSize: 20 * 1024 * 1024, // SECURITY FIX: 20MB limit for audio (was 100MB)
   },
   fileFilter: audioFileFilter,
 });
@@ -117,7 +117,7 @@ const videoFileFilter = (req, file, cb) => {
 const uploadVideo = multer({
   storage: storage,
   limits: {
-    fileSize: 500 * 1024 * 1024, // Fix #39: 500MB max for video files (was 10GB)
+    fileSize: 50 * 1024 * 1024, // SECURITY FIX: 50MB limit for video (was 500MB)
   },
   fileFilter: videoFileFilter,
 });

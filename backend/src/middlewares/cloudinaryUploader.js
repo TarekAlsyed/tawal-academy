@@ -105,50 +105,53 @@ const uploadToCloudinary = async (req, res, next) => {
             };
 
             let result;
-            try {
-                result = isLarge 
-                    ? await cloudinary.uploader.upload_large(file.path, uploadOptions)
-                    : await cloudinary.uploader.upload(file.path, uploadOptions);
-                
-                console.log(`[CLOUDINARY] Success: ${file.originalname} -> ${result.secure_url}`);
-            } catch (uploadErr) {
-                console.error(`[CLOUDINARY ERROR] Failed to upload ${file.originalname}:`, uploadErr.message);
-                // Attempt one retry for smaller files if it's a timeout
-                if (!isLarge && uploadErr.message.includes('timeout')) {
-                    console.log(`[CLOUDINARY] Retrying ${file.originalname} once...`);
-                    result = await cloudinary.uploader.upload(file.path, uploadOptions);
-                } else {
-                    throw uploadErr;
+            const hasCloudinary = Boolean(process.env.CLOUDINARY_URL || process.env.CLOUDINARY_CLOUD_NAME);
+            if (hasCloudinary) {
+                try {
+                    result = isLarge 
+                        ? await cloudinary.uploader.upload_large(file.path, uploadOptions)
+                        : await cloudinary.uploader.upload(file.path, uploadOptions);
+                    
+                    console.log(`[CLOUDINARY] Success: ${file.originalname} -> ${result.secure_url}`);
+                } catch (uploadErr) {
+                    console.error(`[CLOUDINARY ERROR] Failed to upload ${file.originalname}:`, uploadErr.message);
+                    // Attempt one retry for smaller files if it's a timeout
+                    if (!isLarge && uploadErr.message.includes('timeout')) {
+                        console.log(`[CLOUDINARY] Retrying ${file.originalname} once...`);
+                        try {
+                            result = await cloudinary.uploader.upload(file.path, uploadOptions);
+                        } catch (retryErr) {
+                            console.error(`[CLOUDINARY RETRY ERROR]:`, retryErr.message);
+                        }
+                    }
+                    if (!result) {
+                        console.warn(`[CLOUDINARY FALLBACK] Keeping local file for: ${file.originalname}`);
+                    }
                 }
+            } else {
+                console.warn(`[CLOUDINARY] Credentials not configured. Keeping local file for: ${file.originalname}`);
             }
 
-            // Cleanup local temp file
-            try {
-                if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-            } catch (e) {
-                console.error('[CLEANUP ERROR]:', e.message);
-            }
+            if (result && result.secure_url) {
+                // Cleanup local temp file only if Cloudinary upload succeeded
+                try {
+                    if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+                } catch (e) {
+                    console.error('[CLEANUP ERROR]:', e.message);
+                }
 
-            file.path = result.secure_url;
-            file.cloudinary_public_id = result.public_id;
+                file.path = result.secure_url;
+                file.cloudinary_public_id = result.public_id;
+            }
         }
 
-        console.log('[CLOUDINARY] All files uploaded successfully.');
+        console.log('[CLOUDINARY] File processing completed.');
         next();
     } catch (error) {
         console.error('[UPLOAD MIDDLEWARE ERROR]:', error);
-        // Cleanup local temp files on error
-        if (req.files) {
-            const filesToCleanup = Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
-            filesToCleanup.forEach(f => {
-                if (f.path && fs.existsSync(f.path)) {
-                    try { fs.unlinkSync(f.path); } catch(e) {}
-                }
-            });
-        }
-        res.status(500).json({ 
+        res.status(400).json({ 
             success: false, 
-            message: 'فشل رفع الملفات إلى السحابة'
+            message: 'فشل معالجة رفع الملفات: ' + (error.message || 'خطأ غير معروف')
         });
     }
 };

@@ -4,6 +4,7 @@ const PendingApproval = require('../models/PendingApproval');
 const pool = require('../config/database');
 const fs = require('fs');
 const path = require('path');
+const cloudinary = require('../config/cloudinary');
 const { notifyEvent } = require('../utils/notificationSender');
 
 const getPermissions = (admin) => {
@@ -127,8 +128,6 @@ exports.addPDFs = async (req, res, next) => {
     // Default to true if not explicitly provided as false or 'false'
     const shouldWatermark = has_watermark !== 'false' && has_watermark !== false;
     
-    console.log(`[UPLOAD DEBUG] Starting PDF upload for subject ${id}. has_watermark: ${shouldWatermark} (received: ${has_watermark})`);
-    
     // Handle both upload.array and upload.fields
     let files = [];
     if (Array.isArray(req.files)) {
@@ -140,66 +139,134 @@ exports.addPDFs = async (req, res, next) => {
     }
     
     if (files.length === 0) {
-      console.warn(`[UPLOAD DEBUG] No files found in request for subject ${id}`);
-      return res.status(400).json({ success: false, message: 'يرجى رفع ملفات PDF' });
+      console.warn(`[UPLOAD] No files found in request for subject ${id}`);
+      return res.status(400).json({ success: false, message: 'يرجى اختيار ملفات PDF للرفع' });
     }
-    
-    console.log(`[UPLOAD DEBUG] Processing ${files.length} files. First file size: ${files[0].size}`);
-    
-    const pdfs = files.map(f => {
-      let originalName = f.originalname;
-      try {
-        // Try to decode UTF-8 if it was mangled by Multer/Latin1
-        originalName = Buffer.from(f.originalname, 'latin1').toString('utf8');
-      } catch (e) {
-        console.warn(`[UPLOAD] Failed to decode filename: ${f.originalname}`);
-      }
-      
-      return {
-        name: originalName,
-        url: f.path,
-        size: f.size || null
-      };
-    });
+
+    const subject = await Subject.findById(id);
+    if (!subject) {
+      return res.status(404).json({ success: false, message: 'المادة غير موجودة' });
+    }
+
+    const sanitizedName = (subject.name || 'subject_' + id)
+      .toString().trim()
+      .replace(/[^\u0621-\u064A\u0660-\u0669a-zA-Z0-9\s]/g, '')
+      .replace(/\s+/g, '_').substring(0, 30);
 
     const created = [];
-    try {
-        console.log(`[UPLOAD DEBUG] Saving ${pdfs.length} PDF records to database...`);
-        for (const pdf of pdfs) {
+
+    for (const file of files) {
+      console.log("PDF upload start", file.size);
+
+      let originalName = file.originalname;
+      try {
+        originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+      } catch (e) {
+        console.warn(`[UPLOAD] Failed to decode filename: ${file.originalname}`);
+      }
+
+      let fileUrl = file.path;
+      let isCloudinary = false;
+
+      // Safe Cloudinary upload wrapped in try/catch
+      const hasCloudinary = Boolean(process.env.CLOUDINARY_URL || process.env.CLOUDINARY_CLOUD_NAME);
+      if (hasCloudinary && file.path && fs.existsSync(file.path)) {
+        try {
+          const isLarge = file.size > 10 * 1024 * 1024;
+          const folder = `tawal_academy/subjects/${sanitizedName}/pdfs`;
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+          const publicId = `pdf-${uniqueSuffix}`;
+
+          const uploadOptions = {
+            folder,
+            public_id: publicId,
+            resource_type: 'auto',
+            access_mode: 'public',
+            timeout: 600000,
+            use_filename: true,
+            unique_filename: true,
+            overwrite: true,
+            chunk_size: isLarge ? 6000000 : undefined
+          };
+
+          const result = isLarge
+            ? await cloudinary.uploader.upload_large(file.path, uploadOptions)
+            : await cloudinary.uploader.upload(file.path, uploadOptions);
+
+          if (result && result.secure_url) {
+            fileUrl = result.secure_url;
+            isCloudinary = true;
+            console.log(`[CLOUDINARY] Upload success: ${file.originalname} -> ${result.secure_url}`);
+
             try {
-                const result = await Subject.addPDF(id, pdf.name, pdf.url, pdf.size, shouldWatermark);
-                created.push(result);
-                console.log(`[UPLOAD DEBUG] Saved PDF: ${pdf.name} (ID: ${result.id})`);
-            } catch (insertErr) {
-                console.error(`[UPLOAD DEBUG] Failed to save PDF ${pdf.name} to DB:`, insertErr.message);
-                throw insertErr;
+              if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+            } catch (unlinkErr) {
+              console.warn('[CLEANUP] Could not remove temp file:', unlinkErr.message);
             }
+          }
+        } catch (cloudinaryErr) {
+          console.error('[CLOUDINARY ERROR] PDF upload failed for', file.originalname, ':', cloudinaryErr.message);
+          console.warn('[CLOUDINARY FALLBACK] Storing file locally instead of failing.');
         }
-      
-        await Admin.logActivity(req.admin.id, 'upload_pdfs', { subjectId: id, count: created.length }, req.ip);
-        
-        // Return response IMMEDIATELY after DB save, BEFORE sending notifications to speed up UI
-        res.status(201).json({ success: true, message: `تم رفع ${created.length} ملف بنجاح`, data: { pdfs: created } });
+      }
 
-        // ✅ Notify students
-        (async () => {
-            try {
-                const subject = await Subject.findById(id);
-                await notifyEvent('new_pdf', { subjectName: subject.name, count: created.length }, `/#/subjects/${id}`);
-                console.log(`[UPLOAD] Sent notifications via notifyEvent`);
-            } catch (notifyErr) {
-                console.error('Background Notification Error:', notifyErr.message);
-            }
-        })();
+      // If not uploaded to Cloudinary, ensure file is stored permanently in uploads/pdfs
+      if (!isCloudinary && file.path && fs.existsSync(file.path)) {
+        try {
+          const persistentDir = path.resolve(__dirname, '../../uploads/pdfs');
+          if (!fs.existsSync(persistentDir)) {
+            fs.mkdirSync(persistentDir, { recursive: true });
+          }
+          const targetFilename = path.basename(file.path);
+          const targetPath = path.join(persistentDir, targetFilename);
+          if (file.path !== targetPath) {
+            fs.copyFileSync(file.path, targetPath);
+            try { fs.unlinkSync(file.path); } catch(e) {}
+          }
+          fileUrl = `/uploads/pdfs/${targetFilename}`;
+          console.log(`[LOCAL STORAGE] PDF saved locally at: ${fileUrl}`);
+        } catch (localErr) {
+          console.error('[LOCAL STORAGE ERROR] Failed to store local PDF:', localErr.message);
+        }
+      }
 
-        console.log(`[UPLOAD DEBUG] Successfully completed upload process for subject ${id}`);
-    } catch (error) {
-      console.error('[UPLOAD DEBUG] Error saving PDFs to database:', error);
-      throw error;
+      // Save record in database
+      try {
+        const result = await Subject.addPDF(id, originalName, fileUrl, file.size || null, shouldWatermark);
+        created.push(result);
+        console.log(`[UPLOAD DEBUG] Saved PDF to DB: ${originalName} (ID: ${result.id})`);
+      } catch (insertErr) {
+        console.error(`[UPLOAD DEBUG] Failed to save PDF ${originalName} to DB:`, insertErr.message);
+        return res.status(400).json({
+          success: false,
+          message: `فشل حفظ بيانات الملف في قاعدة البيانات: ${insertErr.message}`
+        });
+      }
     }
+
+    if (req.admin && req.admin.id) {
+      await Admin.logActivity(req.admin.id, 'upload_pdfs', { subjectId: id, count: created.length }, req.ip);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `تم رفع ${created.length} ملف بنجاح`,
+      data: { pdfs: created }
+    });
+
+    (async () => {
+      try {
+        await notifyEvent('new_pdf', { subjectName: subject.name, count: created.length }, `/#/subjects/${id}`);
+      } catch (notifyErr) {
+        console.error('Background Notification Error:', notifyErr.message);
+      }
+    })();
   } catch (error) {
-    console.error('[UPLOAD DEBUG] Final Error in addPDFs:', error.message);
-    next(error);
+    console.error('[UPLOAD DEBUG] Final Error in addPDFs:', error);
+    return res.status(400).json({
+      success: false,
+      message: `حدث خطأ أثناء رفع ملفات الـ PDF: ${error.message || 'خطأ غير معروف'}`
+    });
   }
 };
 

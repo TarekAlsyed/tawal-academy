@@ -112,12 +112,12 @@ const handleMulterError = (req, res, next) => {
     if (err instanceof multer.MulterError) {
       console.error('[MULTER ERROR]:', err.code, err.message);
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ success: false, message: 'حجم الملف كبير جداً. الحد الأقصى هو 100 ميجابايت.' });
+        return res.status(400).json({ success: false, message: 'حجم الملف كبير جداً. الحد الأقصى هو 50 ميجابايت.' });
       }
       return res.status(400).json({ success: false, message: `خطأ في رفع الملف: ${err.message}` });
     } else if (err) {
       console.error('[UPLOAD ERROR]:', err.message);
-      return res.status(500).json({ success: false, message: `حدث خطأ غير متوقع أثناء الرفع: ${err.message}` });
+      return res.status(400).json({ success: false, message: `نوع الملف غير مدعوم أو تالف: ${err.message}` });
     }
     next();
   };
@@ -128,7 +128,7 @@ router.post('/subjects/:id/pdfs', adminAuth, checkPermission('subjects', 'upload
     if (err) return handleMulterError(req, res, next)(err);
     next();
   });
-}, uploadToCloudinary, adminSubjectController.addPDFs);
+}, adminSubjectController.addPDFs);
 
 router.delete('/subjects/:subjectId/pdfs/:pdfId', adminAuth, checkPermission('subjects', 'delete_pdf'), adminSubjectController.deletePDF);
 router.put('/subjects/:subjectId/pdfs/:pdfId/watermark', adminAuth, checkPermission('subjects', 'upload_pdf'), adminSubjectController.updatePDFWatermark);

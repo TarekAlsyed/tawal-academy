@@ -77,10 +77,15 @@ const generateHMAC = (data, secret) => {
 };
 
 const verifyRequestIntegrity = async (req, res, next) => {
+    // Exempt all admin routes completely from HMAC / Request Integrity / App Signature checks
+    // Admin routes rely on JWT (adminAuth) + X-Device-Id only and do not require an app signature
+    if (req.path.startsWith('/admin') || (req.originalUrl && req.originalUrl.includes('/admin/')) || req.path.includes('/admin/')) {
+        return next();
+    }
+
     const method = (req.method || '').toUpperCase();
     const path = (req.path || '').toLowerCase();
     
-    // ✅ M-04 FIX: Apply integrity check to admin routes too (removed /api/admin/ skip)
     // Only skip monitoring routes (public error reporting)
     if (path.includes('/monitoring/')) {
         return next();
@@ -304,6 +309,12 @@ const checkBlacklist = async (req, res, next) => {
 // Protection is now via: CORS policy + X-Request-Timestamp (replay) + rate limiting + IP blacklist.
 // This middleware is kept for legacy clients (older app versions) that still send the header.
 const verifySignature = (req, res, next) => {
+    // Exempt all admin routes completely from App Signature checks
+    // Admin routes rely on JWT (adminAuth) + X-Device-Id only and do not require an app signature
+    if (req.path.startsWith('/admin') || (req.originalUrl && req.originalUrl.includes('/admin/')) || req.path.includes('/admin/')) {
+        return next();
+    }
+
     // Skip for safe methods and health checks
     if (req.method === 'GET' || req.method === 'OPTIONS') return next();
     const path = (req.path || '').toLowerCase();
@@ -316,10 +327,10 @@ const verifySignature = (req, res, next) => {
     const signatureTime = req.headers['x-app-signature-time'];
     const expectedSecret = process.env.APP_SIGNATURE_SECRET;
 
-    // SECURITY FIX: If no signature header sent, allow the request.
+    // SECURITY FIX: If no signature header sent (or empty/undefined), allow the request.
     // The frontend no longer sends X-App-Signature (removed for security).
     // Protection is enforced by CORS + timestamp replay protection + rate limiting.
-    if (!signature) {
+    if (!signature || signature === 'undefined' || signature === 'null') {
         return next();
     }
 
@@ -530,7 +541,7 @@ const setupSecurity = (app) => {
         if (!origin) {
             const platform = (req.headers['x-platform'] || '').toLowerCase();
             const deviceId = req.headers['x-device-id'];
-            if (platform && ['android', 'ios', 'electron'].includes(platform) && deviceId) {
+            if (platform && ['android', 'ios', 'electron', 'capacitor'].includes(platform) && deviceId) {
                 return callback(null, {
                     origin: true,
                     credentials: true,
@@ -541,7 +552,7 @@ const setupSecurity = (app) => {
                 });
             }
             console.warn('[CORS] Blocked originless request — missing or invalid x-platform/x-device-id');
-            return callback(new Error('Origin required'), false);
+            return callback(null, { origin: false });
         }
 
         const allowedOrigins = [

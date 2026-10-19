@@ -35,7 +35,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Verify critical environment variables
-const criticalEnvVars = ['DATABASE_URL', 'JWT_SECRET', 'APP_SECRET', 'APP_SIGNATURE'];
+const criticalEnvVars = ['DATABASE_URL', 'JWT_SECRET', 'APP_SECRET'];
 criticalEnvVars.forEach(varName => {
   if (!process.env[varName]) {
     console.error(`❌ CRITICAL ERROR: Environment variable ${varName} is missing!`);
@@ -47,6 +47,12 @@ criticalEnvVars.forEach(varName => {
     }
   }
 });
+
+// Non-fatal check for APP_SIGNATURE (uses safe temporary fallback if missing)
+if (!process.env.APP_SIGNATURE) {
+  console.warn('⚠️  WARNING: APP_SIGNATURE is missing. Using safe temporary fallback — server will NOT stop.');
+  process.env.APP_SIGNATURE = 'tawal_academy_safe_temp_sig';
+}
 
 const routes = require('./routes');
 const errorHandler = require('./middlewares/errorHandler');

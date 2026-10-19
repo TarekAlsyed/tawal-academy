@@ -1,29 +1,42 @@
-const admin = require('firebase-admin');
+let admin = null;
 
-// SECURITY FIX: Never load service account from file on disk.
-// Use FIREBASE_SERVICE_ACCOUNT_JSON environment variable instead.
-// Set it in your .env or deployment secrets as a JSON string.
+try {
+  admin = require('firebase-admin');
+} catch (err) {
+  console.warn('[Firebase] ⚠️ firebase-admin module could not be loaded:', err.message);
+}
 
 let firebaseInitialized = false;
 
 try {
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 
-  if (serviceAccountJson) {
-    const serviceAccount = JSON.parse(serviceAccountJson);
-
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
-
-    firebaseInitialized = true;
-    console.log('Firebase Admin initialized successfully via environment variable.');
+  if (!serviceAccountJson || typeof serviceAccountJson !== 'string' || !serviceAccountJson.trim()) {
+    console.warn('[Firebase] ⚠️ FIREBASE_SERVICE_ACCOUNT_JSON env variable not set. Push notifications (Firebase) disabled.');
   } else {
-    console.warn('[Firebase] FIREBASE_SERVICE_ACCOUNT_JSON env variable not set.');
-    console.warn('[Firebase] Push notifications will be disabled.');
+    let serviceAccount = null;
+    try {
+      serviceAccount = JSON.parse(serviceAccountJson);
+    } catch (parseError) {
+      console.warn('[Firebase] ⚠️ Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON (invalid JSON). Firebase disabled:', parseError.message);
+    }
+
+    if (serviceAccount && admin) {
+      try {
+        if (!admin.apps || admin.apps.length === 0) {
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+          });
+        }
+        firebaseInitialized = true;
+        console.log('Firebase Admin initialized successfully via environment variable.');
+      } catch (initError) {
+        console.warn('[Firebase] ⚠️ Failed to initialize Firebase Admin app. Firebase disabled:', initError.message);
+      }
+    }
   }
 } catch (error) {
-  console.error('[Firebase] Failed to initialize Firebase Admin:', error.message);
+  console.warn('[Firebase] ⚠️ Unexpected error in Firebase configuration:', error.message);
 }
 
 module.exports = admin;

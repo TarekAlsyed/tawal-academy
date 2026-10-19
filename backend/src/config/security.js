@@ -497,13 +497,17 @@ const setupSecurity = (app) => {
     // Optimized CORS Configuration for GitHub Pages & AlwaysData
     const corsOptions = {
         origin: function (origin, callback) {
-            // SECURITY FIX: Always block requests without Origin header.
-            // In all environments, originless requests are potential direct API abuse.
-            // Capacitor native apps send 'capacitor://localhost' as Origin.
-            // curl/Postman/scripts have no Origin and must be blocked.
+            // Allow native app requests that don't send an Origin header
+            // (some Android WebView / Electron builds omit it).
+            // We verify identity via x-platform + x-device-id headers instead.
             if (!origin) {
-                console.warn('[CORS] Blocked request without Origin header — potential direct API abuse');
-                return callback(new Error('Origin header required'), false);
+                const platform = (req.headers['x-platform'] || '').toLowerCase();
+                const deviceId = req.headers['x-device-id'] || req.headers['x-device-id'];
+                if (platform && ['android', 'ios', 'electron'].includes(platform) && deviceId) {
+                    return callback(null, true);
+                }
+                console.warn('[CORS] Blocked originless request — missing or invalid x-platform/x-device-id');
+                return callback(new Error('Origin required'), false);
             }
             
             const allowedOrigins = [

@@ -101,17 +101,17 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ 
     status: 'ok', 
     service: 'tawal-academy-backend',
-    version: '2.1.0-secured',
-    updated: '2026-04-25'
+    version: '2.2.0-secured',
+    updated: '2026-10-19'
   });
 });
 
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', service: 'tawal-academy-backend', version: '2.1.0-secured' });
+  res.status(200).json({ status: 'ok', service: 'tawal-academy-backend', version: '2.2.0-secured' });
 });
 
 app.get('/', (req, res) => {
-  res.status(200).send('Tawal Academy API v2.1.0-secured is Running ✅');
+  res.status(200).send('Tawal Academy API v2.2.0-secured is Running ✅');
 });
 
 // Prevent caching of API responses (security: avoid sensitive data leaking via cache)

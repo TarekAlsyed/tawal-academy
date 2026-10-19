@@ -255,7 +255,7 @@ router.get('/system/status', adminAuth, (req, res) => {
   res.json({
     success: true,
     server_time: new Date().toISOString(),
-    version: '2.1.0-secured',
+    version: '2.2.0-secured',
     env: process.env.NODE_ENV,
     storage: {
       temp_available: dirExists,

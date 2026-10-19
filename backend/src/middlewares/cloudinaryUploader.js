@@ -82,21 +82,19 @@ const uploadToCloudinary = async (req, res, next) => {
 
             console.log(`[CLOUDINARY] Uploading file: ${file.originalname} (${file.size} bytes) to folder: ${folder}`);
 
-            // 2. Upload to Cloudinary directly from disk (Most reliable for shared hosting)
-            // Use upload_large if file is over 10MB, otherwise standard upload
-            const isLarge = file.size > 10 * 1024 * 1024;
+            // Cloudinary Free tier limits file uploads to 10MB.
+            // Files >10MB are kept locally to avoid rejection and uncaught stream errors from upload_large.
+            const isOverCloudinaryLimit = file.size > 10 * 1024 * 1024;
             
             const uploadOptions = {
                 folder: folder,
                 public_id: publicId,
-                resource_type: 'auto', // Cloudinary handles PDFs as 'image' internally for transformations
+                resource_type: 'auto',
                 access_mode: 'public',
                 timeout: 600000, // 10 minutes
                 use_filename: true,
                 unique_filename: true,
                 overwrite: true,
-                chunk_size: isLarge ? 6000000 : undefined,
-                // Transformation is only applied to images
                 transformation: (isPDF || isVideo) ? [] : [
                     { width: 1200, crop: 'limit' },
                     { quality: 'auto' },
@@ -106,28 +104,16 @@ const uploadToCloudinary = async (req, res, next) => {
 
             let result;
             const hasCloudinary = Boolean(process.env.CLOUDINARY_URL || process.env.CLOUDINARY_CLOUD_NAME);
-            if (hasCloudinary) {
+            if (hasCloudinary && !isOverCloudinaryLimit) {
                 try {
-                    result = isLarge 
-                        ? await cloudinary.uploader.upload_large(file.path, uploadOptions)
-                        : await cloudinary.uploader.upload(file.path, uploadOptions);
-                    
+                    result = await cloudinary.uploader.upload(file.path, uploadOptions);
                     console.log(`[CLOUDINARY] Success: ${file.originalname} -> ${result.secure_url}`);
                 } catch (uploadErr) {
                     console.error(`[CLOUDINARY ERROR] Failed to upload ${file.originalname}:`, uploadErr.message);
-                    // Attempt one retry for smaller files if it's a timeout
-                    if (!isLarge && uploadErr.message.includes('timeout')) {
-                        console.log(`[CLOUDINARY] Retrying ${file.originalname} once...`);
-                        try {
-                            result = await cloudinary.uploader.upload(file.path, uploadOptions);
-                        } catch (retryErr) {
-                            console.error(`[CLOUDINARY RETRY ERROR]:`, retryErr.message);
-                        }
-                    }
-                    if (!result) {
-                        console.warn(`[CLOUDINARY FALLBACK] Keeping local file for: ${file.originalname}`);
-                    }
+                    console.warn(`[CLOUDINARY FALLBACK] Keeping local file for: ${file.originalname}`);
                 }
+            } else if (isOverCloudinaryLimit) {
+                console.log(`[CLOUDINARY] File "${file.originalname}" is ${Math.round(file.size / (1024 * 1024))}MB (>10MB limit). Storing locally.`);
             } else {
                 console.warn(`[CLOUDINARY] Credentials not configured. Keeping local file for: ${file.originalname}`);
             }

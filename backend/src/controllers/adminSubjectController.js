@@ -169,10 +169,13 @@ exports.addPDFs = async (req, res, next) => {
       let isCloudinary = false;
 
       // Safe Cloudinary upload wrapped in try/catch
+      // NOTE: Cloudinary free accounts strictly limit uploads to 10MB. Files >10MB must be stored locally.
+      // Calling upload_large is avoided because it uses event streams that throw unhandled errors and crash Node.
       const hasCloudinary = Boolean(process.env.CLOUDINARY_URL || process.env.CLOUDINARY_CLOUD_NAME);
-      if (hasCloudinary && file.path && fs.existsSync(file.path)) {
+      const isOverCloudinaryLimit = file.size > 10 * 1024 * 1024;
+
+      if (hasCloudinary && !isOverCloudinaryLimit && file.path && fs.existsSync(file.path)) {
         try {
-          const isLarge = file.size > 10 * 1024 * 1024;
           const folder = `tawal_academy/subjects/${sanitizedName}/pdfs`;
           const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
           const publicId = `pdf-${uniqueSuffix}`;
@@ -185,13 +188,10 @@ exports.addPDFs = async (req, res, next) => {
             timeout: 600000,
             use_filename: true,
             unique_filename: true,
-            overwrite: true,
-            chunk_size: isLarge ? 6000000 : undefined
+            overwrite: true
           };
 
-          const result = isLarge
-            ? await cloudinary.uploader.upload_large(file.path, uploadOptions)
-            : await cloudinary.uploader.upload(file.path, uploadOptions);
+          const result = await cloudinary.uploader.upload(file.path, uploadOptions);
 
           if (result && result.secure_url) {
             fileUrl = result.secure_url;
@@ -208,6 +208,8 @@ exports.addPDFs = async (req, res, next) => {
           console.error('[CLOUDINARY ERROR] PDF upload failed for', file.originalname, ':', cloudinaryErr.message);
           console.warn('[CLOUDINARY FALLBACK] Storing file locally instead of failing.');
         }
+      } else if (isOverCloudinaryLimit) {
+        console.log(`[STORAGE] File "${file.originalname}" is ${Math.round(file.size / (1024 * 1024))}MB (>10MB limit). Storing directly in permanent local storage.`);
       }
 
       // If not uploaded to Cloudinary, ensure file is stored permanently in uploads/pdfs
